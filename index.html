@@ -1,0 +1,1870 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Banco de Casos Radiológicos — IESS San Francisco</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+  :root{
+    --bg: #F4F6F7;
+    --surface: #FFFFFF;
+    --ink: #17262F;
+    --ink-soft: #55697A;
+    --ink-faint: #8A9AA6;
+    --border: #DCE4E8;
+    --accent: #0E7490;
+    --accent-dark: #0B5D74;
+    --accent-tint: #E4F1F4;
+    --seguro: #2F9E52;
+    --seguro-tint: #E6F5EA;
+    --proximo: #B9860A;
+    --proximo-tint: #FBF2DD;
+    --prioridad: #C15A22;
+    --prioridad-tint: #FBE9DD;
+    --urgente: #B23A3A;
+    --urgente-tint: #FAE4E4;
+    --vencido: #5C3B63;
+    --vencido-tint: #EEE4EF;
+    --radius: 3px;
+    --shadow: 0 1px 2px rgba(23,38,47,0.06);
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Public Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 15px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono{ font-family:'IBM Plex Mono', ui-monospace, monospace; letter-spacing: 0.01em; }
+  a{ color: inherit; }
+  button{ font-family: inherit; cursor:pointer; }
+  input, select, textarea{ font-family: inherit; font-size: 14px; }
+
+  /* ---------- App shell ---------- */
+  #app{ min-height:100vh; display:flex; flex-direction:column; }
+  header.topbar{
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 28px;
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    flex-wrap: wrap;
+  }
+  .brand{ display:flex; flex-direction:column; gap:2px; }
+  .brand h1{ margin:0; font-size:19px; font-weight:800; color: var(--ink); letter-spacing: -0.01em; }
+  .brand .hospital{ font-size:12.5px; color: var(--accent-dark); font-weight:600; }
+  .userbox{ display:flex; align-items:center; gap:12px; }
+  .userchip{
+    display:flex; flex-direction:column; align-items:flex-end; line-height:1.25;
+  }
+  .userchip .name{ font-weight:700; font-size:13.5px; }
+  .userchip .role{ font-size:11.5px; color: var(--ink-soft); }
+  .avatar{
+    width:36px; height:36px; border-radius:50%;
+    background: var(--accent); color:#fff; display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:14px; flex-shrink:0;
+  }
+  .linkbtn{
+    background:none; border:none; color: var(--accent-dark); font-size:12.5px; font-weight:600;
+    padding:2px 0; text-decoration: underline; text-underline-offset: 2px;
+  }
+
+  nav.tabs{
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 28px;
+    display:flex; gap: 4px;
+    overflow-x:auto;
+  }
+  nav.tabs button{
+    background:none; border:none; padding: 13px 16px;
+    font-size: 13.5px; font-weight:600; color: var(--ink-soft);
+    border-bottom: 2px solid transparent; white-space:nowrap;
+  }
+  nav.tabs button.active{ color: var(--accent-dark); border-bottom-color: var(--accent); }
+  nav.tabs button .badge{
+    display:inline-block; margin-left:6px; background: var(--urgente); color:#fff;
+    font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:10px;
+  }
+
+  main{ flex:1; max-width: 1180px; width:100%; margin: 0 auto; padding: 26px 28px 60px; }
+
+  .panel-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:18px; flex-wrap:wrap; }
+  .panel-head h2{ margin:0 0 4px; font-size: 20px; font-weight:800; }
+  .panel-head p{ margin:0; color: var(--ink-soft); font-size:13px; }
+
+  .btn-primary{
+    background: var(--accent); color:#fff; border:none; padding: 11px 18px;
+    border-radius: var(--radius); font-weight:700; font-size:13.5px;
+    display:inline-flex; align-items:center; gap:8px;
+  }
+  .btn-primary:hover{ background: var(--accent-dark); }
+  .btn-secondary{
+    background: var(--surface); color: var(--ink); border:1px solid var(--border); padding: 10px 16px;
+    border-radius: var(--radius); font-weight:600; font-size:13.5px;
+  }
+  .btn-secondary:hover{ border-color: var(--accent); color: var(--accent-dark); }
+  .btn-danger{ background:none; border:1px solid var(--urgente); color: var(--urgente); padding:6px 10px; border-radius:var(--radius); font-size:12px; font-weight:600; }
+
+  /* ---------- Filters ---------- */
+  .filterbar{
+    display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px;
+    background: var(--surface); border:1px solid var(--border); border-radius: var(--radius);
+    padding: 12px;
+  }
+  .filterbar input[type=text], .filterbar select{
+    border:1px solid var(--border); border-radius: var(--radius); padding: 9px 10px; background: var(--bg);
+  }
+  .filterbar input[type=text]{ flex: 1 1 220px; min-width:180px; }
+  .filterbar select{ flex: 0 1 190px; }
+
+  /* ---------- Summary chips ---------- */
+  .summary-row{ display:flex; gap:10px; margin-bottom: 18px; flex-wrap:wrap; }
+  .chip{
+    flex:1 1 150px; border-radius: var(--radius); padding: 12px 14px; border:1px solid var(--border);
+    background: var(--surface); border-left: 4px solid var(--ink-faint);
+  }
+  .chip .n{ font-size:22px; font-weight:800; font-family:'IBM Plex Mono', monospace; }
+  .chip .l{ font-size:11.5px; color: var(--ink-soft); font-weight:600; text-transform: uppercase; letter-spacing: 0.03em; }
+  .chip.urgente{ border-left-color: var(--urgente); }
+  .chip.prioridad{ border-left-color: var(--prioridad); }
+  .chip.proximo{ border-left-color: var(--proximo); }
+  .chip.total{ border-left-color: var(--accent); }
+
+  /* ---------- Table ---------- */
+  .tablewrap{ background: var(--surface); border:1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  table{ width:100%; border-collapse: collapse; }
+  thead th{
+    text-align:left; font-size: 11px; text-transform:uppercase; letter-spacing:0.04em;
+    color: var(--ink-soft); font-weight:700; padding: 10px 12px; border-bottom: 1px solid var(--border);
+    background: #FAFBFC;
+  }
+  tbody td{ padding: 12px; border-bottom: 1px solid var(--border); font-size: 13.5px; vertical-align: top; }
+  tbody tr:last-child td{ border-bottom:none; }
+  tbody tr{ border-left: 4px solid transparent; }
+  tbody tr.seguro{ border-left-color: var(--seguro); }
+  tbody tr.proximo{ border-left-color: var(--proximo); }
+  tbody tr.prioridad{ border-left-color: var(--prioridad); }
+  tbody tr.urgente{ border-left-color: var(--urgente); }
+  tbody tr.vencido{ border-left-color: var(--vencido); }
+  .caseid{ font-weight:700; }
+  .paciente{ font-weight:700; }
+  .aportadopor{ font-size:12.5px; color: var(--accent-dark); font-weight:700; }
+  .rolechip{ font-size:10.5px; color: var(--ink-soft); font-weight:600; }
+  .diag{ max-width: 230px; }
+
+  .badge-estado{
+    display:inline-flex; align-items:center; gap:6px; padding: 4px 9px; border-radius: 20px;
+    font-size: 11px; font-weight:700; letter-spacing:0.02em; white-space:nowrap;
+  }
+  .badge-estado::before{ content:''; width:7px; height:7px; border-radius:50%; }
+  .badge-estado.seguro{ background: var(--seguro-tint); color: #1F6E38; }
+  .badge-estado.seguro::before{ background: var(--seguro); }
+  .badge-estado.proximo{ background: var(--proximo-tint); color: #8A6607; }
+  .badge-estado.proximo::before{ background: var(--proximo); }
+  .badge-estado.prioridad{ background: var(--prioridad-tint); color: #92431A; }
+  .badge-estado.prioridad::before{ background: var(--prioridad); }
+  .badge-estado.urgente{ background: var(--urgente-tint); color: #8C2C2C; }
+  .badge-estado.urgente::before{ background: var(--urgente); }
+  .badge-estado.vencido{ background: var(--vencido-tint); color: #452B4A; }
+  .badge-estado.vencido::before{ background: var(--vencido); }
+
+  .tiemporestante{ font-size:12px; color: var(--ink-soft); margin-top:3px; }
+  .alerta-texto{ font-size:11.5px; margin-top:4px; font-weight:600; }
+  .alerta-texto.prioridad{ color: var(--prioridad); }
+  .alerta-texto.urgente{ color: var(--urgente); }
+  .alerta-texto.vencido{ color: var(--vencido); }
+
+  .empty{ padding: 60px 20px; text-align:center; color: var(--ink-soft); }
+  .empty h3{ color: var(--ink); margin-bottom:6px; }
+
+  /* ---------- Forms / Modal ---------- */
+  .modal-backdrop{
+    position:fixed; inset:0; background: rgba(23,38,47,0.45); display:flex; align-items:flex-start; justify-content:center;
+    padding: 40px 16px; overflow-y:auto; z-index: 50;
+  }
+  .modal{
+    background: var(--surface); border-radius: 6px; width: 100%; max-width: 640px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  }
+  .modal-header{ padding: 20px 24px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+  .modal-header h3{ margin:0; font-size:17px; font-weight:800; }
+  .modal-close{ background:none; border:none; font-size:20px; color: var(--ink-soft); line-height:1; }
+  .modal-body{ padding: 22px 24px; }
+  .modal-footer{ padding: 16px 24px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:10px; }
+
+  .field{ margin-bottom: 16px; }
+  .field label{ display:block; font-size: 12.5px; font-weight:700; color: var(--ink-soft); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.02em; }
+  .field input[type=text], .field textarea, .field select{
+    width:100%; border:1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; background: var(--bg);
+  }
+  .field textarea{ min-height: 76px; resize: vertical; }
+  .field .hint{ font-size:11.5px; color: var(--ink-faint); margin-top:4px; }
+  .field input:focus, .field textarea:focus, .field select:focus{ outline: 2px solid var(--accent); outline-offset:1px; background:#fff; }
+  .row2{ display:grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .readonly-row{ display:flex; gap:18px; flex-wrap:wrap; background: var(--accent-tint); border-radius: var(--radius); padding: 12px 14px; margin-bottom:18px; }
+  .readonly-row .ro{ font-size:12.5px; }
+  .readonly-row .ro b{ display:block; font-size:11px; color: var(--accent-dark); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:2px; }
+
+  .combo{ position:relative; }
+  .combo-list{
+    position:absolute; top:calc(100% + 4px); left:0; right:0; background:#fff; border:1px solid var(--border);
+    border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,0.12); max-height: 260px; overflow-y:auto; z-index: 10;
+  }
+  .combo-group{ font-size:10.5px; text-transform:uppercase; letter-spacing:0.04em; color: var(--ink-faint); padding:8px 12px 4px; font-weight:700; }
+  .combo-item{ padding: 9px 12px; font-size:13.5px; cursor:pointer; }
+  .combo-item:hover, .combo-item.hl{ background: var(--accent-tint); }
+  .combo-create{ padding: 10px 12px; font-size:13px; color: var(--accent-dark); font-weight:700; border-top:1px solid var(--border); cursor:pointer; }
+  .combo-create:hover{ background: var(--accent-tint); }
+
+  /* ---------- Onboarding ---------- */
+  .onboard-wrap{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; background: var(--bg); }
+  .onboard-card{ background:#fff; border:1px solid var(--border); border-radius:6px; max-width: 440px; width:100%; padding: 34px 30px; box-shadow: var(--shadow); }
+  .onboard-card h1{ font-size:19px; margin: 0 0 2px; font-weight:800; }
+  .onboard-card .sub{ color: var(--ink-soft); font-size:13px; margin-bottom: 22px; }
+  .segmented{ display:flex; border:1px solid var(--border); border-radius: var(--radius); overflow:hidden; }
+  .segmented button{ flex:1; padding:9px 6px; background:#fff; border:none; font-size:12.5px; font-weight:700; color: var(--ink-soft); border-right:1px solid var(--border); }
+  .segmented button:last-child{ border-right:none; }
+  .segmented button.sel{ background: var(--accent); color:#fff; }
+
+  .toast{
+    position: fixed; bottom: 22px; left:50%; transform: translateX(-50%);
+    background: var(--ink); color:#fff; padding: 11px 20px; border-radius: 6px; font-size:13px; font-weight:600;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25); z-index: 100;
+  }
+
+  @media (max-width: 760px){
+    main{ padding: 18px 14px 50px; }
+    thead{ display:none; }
+    table, tbody, tr, td{ display:block; width:100%; }
+    tbody tr{ border:1px solid var(--border); border-left-width:4px; border-radius: var(--radius); margin-bottom:10px; padding:4px 0; }
+    tbody td{ border-bottom:none; padding: 5px 12px; }
+    tbody td[data-label]::before{ content: attr(data-label); display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:0.03em; color: var(--ink-faint); font-weight:700; margin-bottom:2px; }
+    .row2{ grid-template-columns: 1fr; }
+    .tablewrap{ border:none; background:none; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<!-- Firebase (Firestore = base de datos compartida real; Auth anónimo = requerido por las
+     reglas de seguridad recomendadas, ver README-FIREBASE.md). Se cargan por CDN porque este
+     proyecto es un solo archivo estático, sin paso de compilación ni npm install. -->
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============================= UTILIDADES ============================= */
+
+  /* ============================= FIREBASE / FIRESTORE ============================= */
+  // Cloud Firestore es la base de datos principal y compartida de verdad. localStorage
+  // solo se usa para una cosa puramente local a este dispositivo (qué usuario quedó
+  // recordado en ESTE navegador) — nunca para casos, catálogo, usuarios ni nada que
+  // deba verse igual en todos los equipos.
+  const firebaseConfig = {
+    apiKey: "AIzaSyAFJXoRkbhf2-kBl9iOZEvH2r-saqXVj1w",
+    authDomain: "banco-de-casos.firebaseapp.com",
+    projectId: "banco-de-casos",
+    storageBucket: "banco-de-casos.firebasestorage.app",
+    messagingSenderId: "352457852749",
+    appId: "1:352457852749:web:366f874e6c7e3a39735904",
+    measurementId: "G-QM8J7DDZ8H"
+  };
+  if(typeof firebase === "undefined"){
+    document.getElementById("app").innerHTML =
+      '<div class="empty"><h3>No se pudo cargar Firebase</h3>' +
+      '<p>Revisa tu conexión a internet y recarga la página. Si el problema sigue, ' +
+      'puede que un bloqueador de anuncios o el firewall de la red estén bloqueando ' +
+      'www.gstatic.com — necesario para conectar con la base de datos.</p></div>';
+    throw new Error("El SDK de Firebase no se cargó (revisa la conexión a internet / bloqueadores).");
+  }
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  // Caché local OPCIONAL (IndexedDB, gestionada por el propio Firestore): permite que la
+  // app siga mostrando los últimos datos vistos si hay un corte de red momentáneo. Firestore
+  // en la nube sigue siendo la única fuente de verdad — esto nunca la sustituye.
+  db.enablePersistence({ synchronizeTabs: true }).catch(err=>{
+    console.warn("Caché local de Firestore no disponible (normal con varias pestañas abiertas):", err.code);
+  });
+
+  // Las reglas de seguridad recomendadas (ver README-FIREBASE.md) exigen estar autenticado,
+  // aunque sea de forma anónima, para poder leer o escribir. Esto es independiente del
+  // selector de usuario propio de la app — solo autentica el NAVEGADOR ante Firebase.
+  const listoParaFirestore = firebase.auth().signInAnonymously()
+    .catch(err=> console.error("No se pudo autenticar de forma anónima con Firebase:", err));
+  async function esperarAutenticacion(){ try{ await listoParaFirestore; }catch(e){} }
+
+  // ---- Colecciones con UN documento por registro real (casos, catálogo de estudios) ----
+  // Cada caso y cada estudio es su propio documento. Así, si dos personas crean, editan o
+  // eliminan registros distintos al mismo tiempo, no se pisan entre sí (a diferencia de
+  // guardar todo en un solo documento gigante). onSnapshot() avisa a todos los demás
+  // equipos en tiempo real cuando algo cambia.
+  function suscribirColeccion(nombreColeccion, alActualizar){
+    return new Promise(resolve=>{
+      let primeraVez = true;
+      db.collection(nombreColeccion).onSnapshot(
+        snap=>{
+          const items = snap.docs.map(d=> d.data());
+          if(primeraVez){ primeraVez = false; resolve(items); }
+          else{ alActualizar(items); }
+        },
+        err=>{
+          console.error("Error de sincronización en tiempo real ("+nombreColeccion+"):", err);
+          if(primeraVez){ primeraVez = false; resolve([]); }
+        }
+      );
+    });
+  }
+  async function guardarRegistro(nombreColeccion, registro){
+    await esperarAutenticacion();
+    await db.collection(nombreColeccion).doc(String(registro.id)).set(registro);
+  }
+  async function eliminarRegistro(nombreColeccion, id){
+    await esperarAutenticacion();
+    await db.collection(nombreColeccion).doc(String(id)).delete();
+  }
+  async function guardarRegistrosEnLote(nombreColeccion, registros){
+    await esperarAutenticacion();
+    for(let i=0; i<registros.length; i+=450){ // límite real de Firestore: 500 operaciones por lote
+      const grupo = registros.slice(i, i+450);
+      const lote = db.batch();
+      grupo.forEach(r=> lote.set(db.collection(nombreColeccion).doc(String(r.id)), r));
+      await lote.commit();
+    }
+  }
+
+  // ---- Documentos de configuración (usuarios, categorías, áreas): cambian poco y los
+  // administra una sola persona a la vez, así que un documento único por tipo alcanza.
+  // Sigue siendo Firestore real — no localStorage. ----
+  function suscribirDocumento(nombreColeccion, idDocumento, alActualizar){
+    return new Promise(resolve=>{
+      let primeraVez = true;
+      db.collection(nombreColeccion).doc(idDocumento).onSnapshot(
+        snap=>{
+          const datos = snap.exists ? snap.data().valor : null;
+          if(primeraVez){ primeraVez = false; resolve(datos); }
+          else if(datos !== null){ alActualizar(datos); }
+        },
+        err=>{
+          console.error("Error de sincronización en tiempo real ("+nombreColeccion+"/"+idDocumento+"):", err);
+          if(primeraVez){ primeraVez = false; resolve(null); }
+        }
+      );
+    });
+  }
+  async function guardarDocumento(nombreColeccion, idDocumento, valor){
+    await esperarAutenticacion();
+    await db.collection(nombreColeccion).doc(idDocumento).set({ valor });
+  }
+
+  // Contador atómico para el número de caso: usa una transacción de Firestore para que dos
+  // equipos guardando un caso nuevo al mismo tiempo NUNCA reciban el mismo número.
+  async function generarNumeroCasoAtomico(){
+    await esperarAutenticacion();
+    const ref = db.collection("configuracion").doc("contador_casos");
+    return db.runTransaction(async tx=>{
+      const snap = await tx.get(ref);
+      const siguiente = (snap.exists ? (snap.data().valor||0) : 0) + 1;
+      tx.set(ref, { valor: siguiente });
+      return siguiente;
+    });
+  }
+
+  const HOSPITAL = "IESS SAN FRANCISCO";
+
+
+
+  // Cada estudio tiene MODALIDAD (el tipo de equipo: TC, RX, ECO, RM) y CATEGORÍA (la región
+  // del cuerpo, solo para organizar la vista dentro de una modalidad). Son dos campos
+  // distintos y ambos se pueden editar desde el catálogo.
+  const MODALIDADES = ["TOMOGRAFÍA", "RADIOGRAFÍA", "ECOGRAFÍA", "RESONANCIA MAGNÉTICA"];
+  const CATEGORIAS_INICIALES = MODALIDADES.slice();
+
+  // Catálogo precargado: [nombre oficial, modalidad, categoría/región].
+  const CATALOGO_INICIAL = [
+    // ---- TOMOGRAFÍA · NEURO / CABEZA Y CUELLO ----
+    ["TC DE CRÁNEO SIMPLE","TOMOGRAFÍA","NEURO / CABEZA Y CUELLO"],
+    ["TC DE CRÁNEO CONTRASTADA","TOMOGRAFÍA","NEURO / CABEZA Y CUELLO"],
+    ["TC DE CRÁNEO SIMPLE Y CONTRASTADA","TOMOGRAFÍA","NEURO / CABEZA Y CUELLO"],
+    ["ANGIO-TC CEREBRAL","TOMOGRAFÍA","NEURO / CABEZA Y CUELLO"],
+    ["ANGIO-TC DE CUELLO","TOMOGRAFÍA","NEURO / CABEZA Y CUELLO"],
+    ["TC DE SENOS PARANASALES","TOMOGRAFÍA","NEURO / CABEZA Y CUELLO"],
+    ["TC DE MACIZO FACIAL","TOMOGRAFÍA","NEURO / CABEZA Y CUELLO"],
+    ["TC DE ÓRBITAS","TOMOGRAFÍA","NEURO / CABEZA Y CUELLO"],
+    ["TC DE PEÑASCOS / OÍDOS","TOMOGRAFÍA","NEURO / CABEZA Y CUELLO"],
+    ["TC DE CUELLO SIMPLE","TOMOGRAFÍA","NEURO / CABEZA Y CUELLO"],
+    ["TC DE CUELLO CONTRASTADA","TOMOGRAFÍA","NEURO / CABEZA Y CUELLO"],
+    ["TC DE CUELLO SIMPLE Y CONTRASTADA","TOMOGRAFÍA","NEURO / CABEZA Y CUELLO"],
+
+    // ---- TOMOGRAFÍA · TÓRAX ----
+    ["TC DE TÓRAX SIMPLE","TOMOGRAFÍA","TÓRAX"],
+    ["TC DE TÓRAX CONTRASTADA","TOMOGRAFÍA","TÓRAX"],
+    ["TC DE TÓRAX SIMPLE Y CONTRASTADA","TOMOGRAFÍA","TÓRAX"],
+    ["TC DE TÓRAX DE ALTA RESOLUCIÓN (HRCT)","TOMOGRAFÍA","TÓRAX"],
+    ["ANGIO-TC DE TÓRAX","TOMOGRAFÍA","TÓRAX"],
+    ["ANGIO-TC PARA TROMBOEMBOLIA PULMONAR","TOMOGRAFÍA","TÓRAX"],
+    ["TC DE AORTA TORÁCICA","TOMOGRAFÍA","TÓRAX"],
+
+    // ---- TOMOGRAFÍA · ABDOMEN Y PELVIS ----
+    ["TC DE ABDOMEN SIMPLE","TOMOGRAFÍA","ABDOMEN Y PELVIS"],
+    ["TC DE ABDOMEN CONTRASTADA","TOMOGRAFÍA","ABDOMEN Y PELVIS"],
+    ["TC DE ABDOMEN SIMPLE Y CONTRASTADA","TOMOGRAFÍA","ABDOMEN Y PELVIS"],
+    ["TC DE ABDOMEN Y PELVIS SIMPLE","TOMOGRAFÍA","ABDOMEN Y PELVIS"],
+    ["TC DE ABDOMEN Y PELVIS CONTRASTADA","TOMOGRAFÍA","ABDOMEN Y PELVIS"],
+    ["TC DE ABDOMEN Y PELVIS SIMPLE Y CONTRASTADA","TOMOGRAFÍA","ABDOMEN Y PELVIS"],
+    ["ANGIO-TC DE ABDOMEN","TOMOGRAFÍA","ABDOMEN Y PELVIS"],
+    ["ANGIO-TC DE ABDOMEN Y PELVIS","TOMOGRAFÍA","ABDOMEN Y PELVIS"],
+    ["TC TRIFÁSICA HEPÁTICA","TOMOGRAFÍA","ABDOMEN Y PELVIS"],
+    ["TC PROTOCOLO PANCREÁTICO","TOMOGRAFÍA","ABDOMEN Y PELVIS"],
+    ["TC PROTOCOLO SUPRARRENAL","TOMOGRAFÍA","ABDOMEN Y PELVIS"],
+    ["URO-TC","TOMOGRAFÍA","ABDOMEN Y PELVIS"],
+    ["ENTERO-TC","TOMOGRAFÍA","ABDOMEN Y PELVIS"],
+    ["BODY TC SIMPLE","TOMOGRAFÍA","ABDOMEN Y PELVIS"],
+    ["BODY TC CONTRASTADA","TOMOGRAFÍA","ABDOMEN Y PELVIS"],
+
+    // ---- TOMOGRAFÍA · COLUMNA Y MUSCULOESQUELÉTICO ----
+    ["TC DE COLUMNA SIMPLE","TOMOGRAFÍA","COLUMNA Y MUSCULOESQUELÉTICO"],
+    ["TC DE COLUMNA CERVICAL","TOMOGRAFÍA","COLUMNA Y MUSCULOESQUELÉTICO"],
+    ["TC DE COLUMNA DORSAL","TOMOGRAFÍA","COLUMNA Y MUSCULOESQUELÉTICO"],
+    ["TC DE COLUMNA LUMBAR","TOMOGRAFÍA","COLUMNA Y MUSCULOESQUELÉTICO"],
+    ["TC DE COLUMNA LUMBOSACRA","TOMOGRAFÍA","COLUMNA Y MUSCULOESQUELÉTICO"],
+    ["TC DE HOMBRO","TOMOGRAFÍA","COLUMNA Y MUSCULOESQUELÉTICO"],
+    ["TC DE CODO","TOMOGRAFÍA","COLUMNA Y MUSCULOESQUELÉTICO"],
+    ["TC DE MUÑECA","TOMOGRAFÍA","COLUMNA Y MUSCULOESQUELÉTICO"],
+    ["TC DE PELVIS SIMPLE","TOMOGRAFÍA","COLUMNA Y MUSCULOESQUELÉTICO"],
+    ["TC DE PELVIS CONTRASTADA","TOMOGRAFÍA","COLUMNA Y MUSCULOESQUELÉTICO"],
+    ["TC DE PELVIS ÓSEA","TOMOGRAFÍA","COLUMNA Y MUSCULOESQUELÉTICO"],
+    ["TC DE CADERA","TOMOGRAFÍA","COLUMNA Y MUSCULOESQUELÉTICO"],
+    ["TC DE RODILLA","TOMOGRAFÍA","COLUMNA Y MUSCULOESQUELÉTICO"],
+    ["TC DE TOBILLO","TOMOGRAFÍA","COLUMNA Y MUSCULOESQUELÉTICO"],
+    ["TC DE EXTREMIDAD SUPERIOR","TOMOGRAFÍA","COLUMNA Y MUSCULOESQUELÉTICO"],
+    ["TC DE EXTREMIDAD INFERIOR","TOMOGRAFÍA","COLUMNA Y MUSCULOESQUELÉTICO"],
+
+    // ---- RADIOGRAFÍA ----
+    ["RX DE TÓRAX","RADIOGRAFÍA","GENERAL"],
+    ["RX DE ABDOMEN","RADIOGRAFÍA","GENERAL"],
+    ["RX DE PELVIS","RADIOGRAFÍA","GENERAL"],
+
+    // ---- ECOGRAFÍA ----
+    ["ECOGRAFÍA ABDOMINAL","ECOGRAFÍA","GENERAL"],
+    ["ECOGRAFÍA ABDOMINAL COMPLETA","ECOGRAFÍA","GENERAL"],
+    ["ECOGRAFÍA HEPATOBILIAR","ECOGRAFÍA","GENERAL"],
+    ["ECOGRAFÍA RENAL","ECOGRAFÍA","GENERAL"],
+    ["ECOGRAFÍA PÉLVICA","ECOGRAFÍA","GENERAL"],
+    ["ECOGRAFÍA TRANSVAGINAL","ECOGRAFÍA","GENERAL"],
+    ["ECOGRAFÍA OBSTÉTRICA","ECOGRAFÍA","GENERAL"],
+    ["ECOGRAFÍA DE TIROIDES","ECOGRAFÍA","GENERAL"],
+    ["ECOGRAFÍA TESTICULAR","ECOGRAFÍA","GENERAL"],
+    ["ECOGRAFÍA DE PARTES BLANDAS","ECOGRAFÍA","GENERAL"],
+    ["ECOGRAFÍA DOPPLER VENOSO","ECOGRAFÍA","GENERAL"],
+    ["ECOGRAFÍA DOPPLER ARTERIAL","ECOGRAFÍA","GENERAL"],
+
+    // ---- RESONANCIA MAGNÉTICA ----
+    ["RM CEREBRAL SIMPLE","RESONANCIA MAGNÉTICA","GENERAL"],
+    ["RM CEREBRAL CONTRASTADA","RESONANCIA MAGNÉTICA","GENERAL"],
+    ["RM DE COLUMNA CERVICAL","RESONANCIA MAGNÉTICA","GENERAL"],
+    ["RM DE COLUMNA LUMBAR","RESONANCIA MAGNÉTICA","GENERAL"],
+    ["RM DE ABDOMEN","RESONANCIA MAGNÉTICA","GENERAL"],
+    ["RM DE PELVIS","RESONANCIA MAGNÉTICA","GENERAL"],
+    ["RM DE RODILLA","RESONANCIA MAGNÉTICA","GENERAL"],
+    ["RM DE HOMBRO","RESONANCIA MAGNÉTICA","GENERAL"],
+    ["COLANGIO-RM","RESONANCIA MAGNÉTICA","GENERAL"],
+    ["ANGIO-RM CEREBRAL","RESONANCIA MAGNÉTICA","GENERAL"]
+  ];
+
+  // Estudios que van primero, en una sección "FRECUENTES", en el buscador.
+  const FRECUENTES_INICIALES = [
+    "TC DE CRÁNEO SIMPLE","TC DE TÓRAX SIMPLE","TC DE ABDOMEN Y PELVIS SIMPLE",
+    "TC DE ABDOMEN Y PELVIS CONTRASTADA","BODY TC SIMPLE","RX DE TÓRAX"
+  ];
+
+  // Inferencia automática de MODALIDAD a partir del nombre, para que crear un estudio
+  // nuevo no obligue a elegir manualmente el tipo (aunque siempre se puede corregir).
+  function inferirCategoria(nombreEstudio){
+    const n = normKey(nombreEstudio);
+    if(/\bRM\b|RESONANCIA/.test(n)) return "RESONANCIA MAGNÉTICA";
+    if(/\bECO\b|ECOGRAFIA|ULTRASONIDO|DOPPLER/.test(n)) return "ECOGRAFÍA";
+    if(/\bRX\b|RADIOGRAFIA|RAYOS X/.test(n)) return "RADIOGRAFÍA";
+    if(/\bTC\b|\bTAC\b|TOMOGRAFIA|ANGIO ?TC|URO ?TC|ENTERO ?TC|BODY TC/.test(n)) return "TOMOGRAFÍA";
+    return null;
+  }
+
+  const AREAS_INICIAL = [
+    "CABEZA","CUELLO","TÓRAX","ABDOMEN","PELVIS","COLUMNA","HUESO / MUSCULOESQUELÉTICO",
+    "TUMORAL / ONCOLÓGICO","CARDIOVASCULAR","NEUROLÓGICO","UROLÓGICO / RENAL","HEPATOBILIAR",
+    "GASTROINTESTINAL","MAMA","VASCULAR","PARTES BLANDAS","OBSTÉTRICO / GINECOLÓGICO","OTORRINOLARINGOLÓGICO"
+  ];
+
+  function up(s){ return (s||"").toString().toLocaleUpperCase("es-ES").replace(/\s+/g," ").trim(); }
+  // Versión para usar MIENTRAS el usuario escribe: sube a mayúsculas y colapsa espacios dobles,
+  // pero NUNCA recorta un espacio al final/inicio — de lo contrario, el espacio que el usuario
+  // acaba de teclear entre dos palabras desaparece antes de poder escribir la siguiente palabra
+  // (bug real: "NEURORRADIOLOGIA" + [espacio] se recortaba a "NEURORRADIOLOGIA" y al seguir
+  // escribiendo quedaba "NEURORRADIOLOGIAPEDIATRICA"). La normalización estricta (con trim)
+  // se sigue aplicando en up() al momento de guardar.
+  function upLive(s){ return (s||"").toString().toLocaleUpperCase("es-ES").replace(/ {2,}/g," "); }
+  function normKey(s){ return up(s).normalize("NFD").replace(/[\u0300-\u036f]/g,""); }
+
+  /* --- Normalización y equivalencias de tipos de estudio --- */
+  const STOPWORDS_ESTUDIO = new Set(["DE","Y","CON","SIN","DEL","LA","EL","LOS","LAS","A","EN"]);
+  const EQUIVALENCIAS_ESTUDIO = [
+    [/TOMOGRAFIA COMPUTARIZADA/g, "TC"],
+    [/TOMOGRAFICO/g, "TC"],
+    [/TOMOGRAFIA/g, "TC"],
+    [/\bTAC\b/g, "TC"],
+    [/RESONANCIA MAGNETICA/g, "RM"],
+    [/\bRESONANCIA\b/g, "RM"],
+    [/\bULTRASONIDO\b/g, "ECOGRAFIA"],
+    [/\bECO\b/g, "ECOGRAFIA"],
+    [/RAYOS X/g, "RADIOGRAFIA"],
+    [/\bRX\b/g, "RADIOGRAFIA"],
+    [/CON CONTRASTE/g, "CONTRASTADA"],
+    [/SIN CONTRASTE/g, "SIMPLE"],
+    [/\bCONTRASTE\b/g, "CONTRASTADA"],
+    [/ABDOMINOPELVICA/g, "ABDOMEN PELVIS"],
+    [/\bUROTAC\b/g, "URO TC"],
+    [/\bUROLOGICA\b/g, "URO"],
+    [/\bCEREBRAL\b/g, "CRANEO"],
+    [/\bCEREBRO\b/g, "CRANEO"],
+    [/\bTEP\b/g, "ARTERIAS PULMONARES"]
+  ];
+  function tokensEstudio(nombre){
+    let s = normKey(nombre).replace(/-/g, " ");
+    EQUIVALENCIAS_ESTUDIO.forEach(([re, rep])=> { s = s.replace(re, rep); });
+    s = s.replace(/\s+/g, " ").trim();
+    const tokens = s.split(" ").filter(t=> t && !STOPWORDS_ESTUDIO.has(t));
+    return Array.from(new Set(tokens));
+  }
+  function claveCanonicaEstudio(nombre){
+    return tokensEstudio(nombre).slice().sort().join(" ");
+  }
+  // Cachea la clave canónica y los tokens EN el propio objeto del catálogo (se calculan
+  // regex/normalización pesada una sola vez por estudio, no en cada tecla que escribe el
+  // usuario al buscar). invalidarCacheEstudio() se llama cada vez que se renombra un estudio.
+  function claveCanonicaDeEntrada(entry){
+    if(entry._clave === undefined) entry._clave = claveCanonicaEstudio(entry.nombre);
+    return entry._clave;
+  }
+  function invalidarCacheEstudio(entry){
+    delete entry._clave;
+    delete entry._tokens;
+  }
+  function buscarEstudioDuplicado(nombre, lista){
+    const clave = claveCanonicaEstudio(nombre);
+    if(!clave) return null;
+    return lista.find(e=> claveCanonicaDeEntrada(e) === clave) || null;
+  }
+  function coincideEstudio(entry, consulta){
+    const qTokens = tokensEstudio(consulta);
+    if(qTokens.length===0) return true;
+    if(!entry._tokens) entry._tokens = tokensEstudio(entry.nombre);
+    return qTokens.every(qt=> entry._tokens.some(et=> et.startsWith(qt) || qt.startsWith(et)));
+  }
+  function modalidadActiva(nombreModalidad){
+    const c = CATEGORIAS.find(x=> x.nombre === nombreModalidad);
+    return c ? c.activo : true; // si no está registrada (dato legado), se asume activa
+  }
+  function estudiosDisponibles(){
+    return CATALOGO.filter(e=> e.activo && modalidadActiva(e.modalidad));
+  }
+  // "FRECUENTES": estudios de acceso rápido al inicio del buscador. Prioriza el uso real
+  // registrado (campo `usos`, que se incrementa cada vez que se elige el estudio al crear un
+  // caso); completa con la lista curada inicial mientras no haya suficiente historial real.
+  function estudiosFrecuentes(limite){
+    limite = limite || 8;
+    const disponibles = estudiosDisponibles();
+    const porUso = disponibles.filter(e=> e.usos > 0).sort((a,b)=> b.usos - a.usos);
+    const resultado = porUso.slice(0, limite);
+    if(resultado.length < limite){
+      const nombresYaIncluidos = new Set(resultado.map(e=> e.nombre));
+      for(const nombre of FRECUENTES_INICIALES){
+        if(resultado.length >= limite) break;
+        if(nombresYaIncluidos.has(nombre)) continue;
+        const entrada = disponibles.find(e=> e.nombre===nombre);
+        if(entrada){ resultado.push(entrada); nombresYaIncluidos.add(nombre); }
+      }
+    }
+    return resultado;
+  }
+  function pad6(n){ return String(n).padStart(6,"0"); }
+  function fmtDate(d){
+    const dt = new Date(d);
+    return String(dt.getDate()).padStart(2,"0")+"/"+String(dt.getMonth()+1).padStart(2,"0")+"/"+dt.getFullYear();
+  }
+  function todayISO(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+  function addYears(iso, years){ const d = new Date(iso); d.setFullYear(d.getFullYear()+years); return d; }
+
+  function diffYMD(from, to){
+    // devuelve diferencia calendario positiva entre from y to (to >= from)
+    let start = new Date(from), end = new Date(to);
+    let years = end.getFullYear() - start.getFullYear();
+    let months = end.getMonth() - start.getMonth();
+    let days = end.getDate() - start.getDate();
+    if(days < 0){
+      months -= 1;
+      const prevMonth = new Date(end.getFullYear(), end.getMonth(), 0);
+      days += prevMonth.getDate();
+    }
+    if(months < 0){ years += -1; months += 12; }
+    return {years, months, days};
+  }
+
+  function estadoConservacion(fechaIngresoISO){
+    const hoy = new Date();
+    const objetivo = addYears(fechaIngresoISO, 2);
+    const diffDays = Math.floor((objetivo - hoy) / 86400000);
+    let estado, mensaje1, mensaje2 = "";
+    if(diffDays < 0){
+      estado = "vencido"; mensaje1 = "ESTUDIO CON ANTIGÜEDAD ≥ 2 AÑOS";
+    } else if(diffDays < 30){
+      estado = "urgente"; mensaje1 = "DESCARGA URGENTE"; mensaje2 = "EL ESTUDIO PUEDE ESTAR PRÓXIMO A ELIMINARSE DEL SISTEMA INSTITUCIONAL.";
+    } else if(diffDays < 90){
+      estado = "prioridad"; mensaje1 = "RESPALDAR ESTUDIO"; mensaje2 = "ESTE CASO ESTÁ PRÓXIMO A CUMPLIR 2 AÑOS. SE RECOMIENDA DESCARGAR EL ESTUDIO ORIGINAL DEL PACS.";
+    } else if(diffDays < 180){
+      estado = "proximo"; mensaje1 = "PRÓXIMO A FECHA DE RESPALDO";
+    } else {
+      estado = "seguro"; mensaje1 = "ESTUDIO DENTRO DEL PERÍODO DE CONSERVACIÓN";
+    }
+    let restante;
+    if(diffDays < 0){
+      const v = diffYMD(objetivo, hoy);
+      restante = "VENCIDO HACE " + fmtYMD(v);
+    } else {
+      const v = diffYMD(hoy, objetivo);
+      restante = fmtYMD(v) + " RESTANTES";
+    }
+    return { estado, mensaje1, mensaje2, objetivo, diffDays, restante };
+  }
+  function fmtYMD(v){
+    const parts = [];
+    if(v.years > 0) parts.push(v.years + (v.years===1?" AÑO":" AÑOS"));
+    if(v.months > 0) parts.push(v.months + (v.months===1?" MES":" MESES"));
+    if(v.days > 0 || parts.length===0) parts.push(v.days + (v.days===1?" DÍA":" DÍAS"));
+    if(parts.length === 1) return parts[0];
+    if(parts.length === 2) return parts[0] + " Y " + parts[1];
+    return parts[0] + ", " + parts[1] + " Y " + parts[2];
+  }
+
+  const ESTADO_LABEL = { seguro:"SEGURO", proximo:"PRÓXIMO A RESPALDAR", prioridad:"PRIORIDAD DE DESCARGA", urgente:"URGENTE", vencido:"CUMPLIÓ DOS AÑOS" };
+  const ORDEN_ESTADO = { urgente:0, vencido:1, prioridad:2, proximo:3, seguro:4 };
+
+  function toast(msg){
+    const t = document.createElement("div");
+    t.className = "toast"; t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(()=>t.remove(), 2600);
+  }
+
+  function debounce(fn, ms){
+    let timer = null;
+    return function(...args){
+      clearTimeout(timer);
+      timer = setTimeout(()=> fn.apply(this, args), ms);
+    };
+  }
+
+  // Diálogo de confirmación propio de la app. El confirm() nativo del navegador queda
+  // bloqueado dentro de iframes en sandbox (como el que usa este entorno para mostrar la
+  // app) y falla en silencio: el botón parece "no hacer nada". Este modal reemplaza a
+  // confirm() por completo y no depende de ningún permiso especial del navegador.
+  function confirmarAccion(mensaje){
+    return new Promise(resolve=>{
+      const back = document.createElement("div");
+      back.className = "modal-backdrop";
+      back.innerHTML = `
+        <div class="modal" style="max-width:380px;">
+          <div class="modal-body" style="padding-top:26px; padding-bottom:6px; font-size:14.5px; font-weight:600; white-space:pre-line;">${mensaje}</div>
+          <div class="modal-footer">
+            <button class="btn-secondary" id="conf-cancelar">Cancelar</button>
+            <button class="btn-primary" id="conf-aceptar" style="background:var(--urgente);">Eliminar</button>
+          </div>
+        </div>`;
+      document.body.appendChild(back);
+      function cerrar(valor){ back.remove(); resolve(valor); }
+      document.getElementById("conf-cancelar").addEventListener("click", ()=> cerrar(false));
+      document.getElementById("conf-aceptar").addEventListener("click", ()=> cerrar(true));
+      back.addEventListener("click", (e)=>{ if(e.target===back) cerrar(false); });
+    });
+  }
+
+  function uppercaseInputs(root){
+    root.querySelectorAll("[data-upper]").forEach(el=>{
+      el.addEventListener("input", ()=>{
+        const pos = el.selectionStart;
+        el.value = upLive(el.value);
+        if(pos!=null) el.setSelectionRange(pos,pos);
+      });
+    });
+  }
+
+  /* ============================= ESTADO / STORAGE ============================= */
+  let PERFIL = null;
+  let USUARIOS = []; // [{id, nombres, apellidos, rol, activo}]
+  let CATALOGO = []; // [{id, nombre, categoria, activo}]
+  let CATEGORIAS = []; // [{nombre, activo}]
+  let AREAS = []; // ["TÓRAX", "ABDOMEN", ...]
+  let CASOS = [];
+  let CONTADOR = 0;
+
+  // Cuando llega una actualización remota (otro equipo guardó/editó/borró algo), se refresca
+  // la vista actual sin perder lo que el usuario esté haciendo: los modales son overlays aparte
+  // de #main, así que refrescar #main no los cierra ni los interrumpe.
+  function refrescarVistaTrasSincronizacion(){
+    if(!PERFIL) renderLogin(); else renderMain();
+  }
+
+  async function cargarUsuarios(){
+    return suscribirDocumento("configuracion", "usuarios", (valor)=>{ USUARIOS = valor; refrescarVistaTrasSincronizacion(); });
+  }
+  async function guardarUsuarios(u){
+    await guardarDocumento("configuracion", "usuarios", u);
+  }
+  async function cargarSesionRecordada(){
+    // Puramente local a este navegador/dispositivo: nunca debe viajar a Firestore.
+    try{ const raw = localStorage.getItem("banco_casos_sesion_recordada"); return raw===null ? null : JSON.parse(raw); }
+    catch(e){ return null; }
+  }
+  async function guardarSesionRecordada(usuarioId){
+    localStorage.setItem("banco_casos_sesion_recordada", JSON.stringify(usuarioId));
+  }
+  async function borrarSesionRecordada(){
+    localStorage.removeItem("banco_casos_sesion_recordada");
+  }
+  async function cargarCatalogo(){
+    return suscribirColeccion("catalogo_estudios", (items)=>{ CATALOGO = items; refrescarVistaTrasSincronizacion(); });
+  }
+  async function guardarCatalogo(cat){
+    // _clave / _tokens son cachés de búsqueda calculadas en memoria (ver claveCanonicaDeEntrada /
+    // coincideEstudio). Nunca deben persistirse: son datos derivados, no datos reales.
+    const limpio = cat.map(({ id, nombre, modalidad, categoria, activo, usos })=> ({ id, nombre, modalidad, categoria, activo, usos: usos||0 }));
+    await guardarRegistrosEnLote("catalogo_estudios", limpio);
+  }
+  async function cargarCategorias(){
+    return suscribirDocumento("configuracion", "categorias", (valor)=>{ CATEGORIAS = valor; refrescarVistaTrasSincronizacion(); });
+  }
+  async function guardarCategorias(cats){
+    await guardarDocumento("configuracion", "categorias", cats);
+  }
+  async function cargarAreas(){
+    return suscribirDocumento("configuracion", "areas", (valor)=>{ AREAS = valor; refrescarVistaTrasSincronizacion(); });
+  }
+  async function guardarAreas(areas){
+    await guardarDocumento("configuracion", "areas", areas);
+  }
+  async function cargarCasos(){
+    return suscribirColeccion("casos", (items)=>{ CASOS = items; refrescarVistaTrasSincronizacion(); });
+  }
+  async function guardarCasos(casos){
+    // Se usa solo para siembra/migración masiva inicial. El día a día (crear/editar/eliminar
+    // UN caso) usa guardarRegistro()/eliminarRegistro() sobre ese único documento — ver el
+    // manejador de "Guardar caso" y eliminarCasoPorId().
+    await guardarRegistrosEnLote("casos", casos);
+  }
+  async function cargarContador(){
+    return 0; // ya no se usa para generar IDs: ver generarNumeroCasoAtomico(). Se mantiene por compatibilidad.
+  }
+  async function guardarContador(n){ /* obsoleto: el contador ahora es atómico en Firestore */ }
+
+
+  function generarIdUsuario(){ return "u_" + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+  function generarIdEstudio(){ return "e_" + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+  async function init(){
+    const app = document.getElementById("app");
+    app.innerHTML = '<div class="empty">CARGANDO BIBLIOTECA…</div>';
+
+    // Las 6 lecturas son independientes entre sí: se piden en paralelo (antes se esperaba
+    // una por una, sumando la latencia de las 6 en vez de la de la más lenta).
+    const [usuariosLeidos, catLeido, categoriasLeidas, areasLeidas, casosLeidos, contadorLeido] = await Promise.all([
+      cargarUsuarios(), cargarCatalogo(), cargarCategorias(), cargarAreas(), cargarCasos(), cargarContador()
+    ]);
+
+    let usuarios = usuariosLeidos;
+    if(!usuarios || usuarios.length===0){
+      usuarios = [{ id:"admin", nombres:"ADMINISTRADOR", apellidos:"DEL SISTEMA", rol:"ADMINISTRADOR", activo:true }];
+      await guardarUsuarios(usuarios);
+    }
+    USUARIOS = usuarios;
+
+    let cat = catLeido;
+    if(!cat || cat.length===0){
+      cat = [];
+      CATALOGO_INICIAL.forEach(([nombre, modalidad, categoria])=> cat.push({ id: generarIdEstudio(), nombre, modalidad, categoria: categoria||"GENERAL", activo:true, usos:0 }));
+      await guardarCatalogo(cat);
+    } else {
+      let migrado = false;
+      cat.forEach(e=>{
+        if(!e.id){ e.id = generarIdEstudio(); migrado = true; }
+        if(typeof e.activo !== "boolean"){ e.activo = true; migrado = true; }
+        if(typeof e.usos !== "number"){ e.usos = 0; migrado = true; }
+        if(!e.modalidad){ e.modalidad = e.categoria || inferirCategoria(e.nombre) || "TOMOGRAFÍA"; migrado = true; }
+        if(!e.categoria){ e.categoria = "GENERAL"; migrado = true; }
+      });
+      if(migrado) await guardarCatalogo(cat);
+    }
+    CATALOGO = cat;
+
+    let categorias = categoriasLeidas;
+    if(!categorias){
+      categorias = CATEGORIAS_INICIALES.map(nombre=> ({ nombre, activo:true }));
+      await guardarCategorias(categorias);
+    }
+    // asegurar que toda modalidad en uso por algún estudio exista también en CATEGORIAS (datos legados o creados al vuelo)
+    let categoriasCambiaron = false;
+    CATALOGO.forEach(e=>{
+      if(!categorias.find(c=> c.nombre===e.modalidad)){
+        categorias.push({ nombre: e.modalidad, activo:true });
+        categoriasCambiaron = true;
+      }
+    });
+    if(categoriasCambiaron) await guardarCategorias(categorias);
+    CATEGORIAS = categorias;
+
+    AREAS = areasLeidas || AREAS_INICIAL.slice();
+    if(!areasLeidas) await guardarAreas(AREAS);
+    CASOS = casosLeidos || [];
+    CONTADOR = contadorLeido || 0;
+
+    const recordadoId = await cargarSesionRecordada();
+    const usuarioRecordado = recordadoId ? USUARIOS.find(u=> u.id===recordadoId && u.activo) : null;
+    if(usuarioRecordado){ PERFIL = usuarioRecordado; renderApp(); }
+    else{ renderLogin(); }
+  }
+
+  /* ============================= ACCESO ============================= */
+  function renderLogin(){
+    const app = document.getElementById("app");
+    const activos = USUARIOS.filter(u=> u.activo);
+    app.innerHTML = `
+      <div class="onboard-wrap">
+        <div class="onboard-card">
+          <h1>Banco de Casos</h1>
+          <div class="sub">¿Quién ingresa?</div>
+          ${activos.length===0 ? `
+            <p style="font-size:13px; color:var(--ink-soft);">Todavía no hay usuarios habilitados. Pide al administrador que los registre en la sección Usuarios.</p>
+          ` : `
+            <div class="field">
+              <label>Seleccionar usuario</label>
+              <select id="lg-usuario">
+                ${activos.map(u=> `<option value="${u.id}">${u.nombres} ${u.apellidos} — ${u.rol}</option>`).join("")}
+              </select>
+            </div>
+            <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-soft); margin-bottom:18px; cursor:pointer;">
+              <input type="checkbox" id="lg-recordar" style="width:16px; height:16px;">
+              Recordarme en este dispositivo
+            </label>
+            <button class="btn-primary" id="lg-ingresar" style="width:100%; justify-content:center;">Ingresar</button>
+          `}
+        </div>
+      </div>
+      <footer style="text-align:center; padding:0 16px 24px; font-size:11px; color:var(--ink-faint); line-height:1.6;">
+        © 2026 Todos los derechos reservados.<br>
+        Donativo académico del posgradista Carlos Lara. Para aprender más y servir mejor.<br>
+        Uso interno exclusivamente académico y médico, respetando la privacidad y confidencialidad.
+      </footer>`;
+    const btn = document.getElementById("lg-ingresar");
+    if(btn){
+      btn.addEventListener("click", async ()=>{
+        const id = document.getElementById("lg-usuario").value;
+        const usuario = USUARIOS.find(u=> u.id===id);
+        if(!usuario) return;
+        const recordar = document.getElementById("lg-recordar").checked;
+        if(recordar) await guardarSesionRecordada(usuario.id);
+        else await borrarSesionRecordada();
+        PERFIL = usuario;
+        renderApp();
+      });
+    }
+  }
+
+  /* ============================= APP PRINCIPAL ============================= */
+  let TAB = "biblioteca";
+  let filtro = { texto:"", medico:"TODOS", estado:"TODOS", area:"TODOS" };
+
+  function nombreCompletoPerfil(){ return PERFIL.nombres + " " + PERFIL.apellidos; }
+
+  function puedeEliminarCaso(c){
+    return PERFIL.rol === "ADMINISTRADOR" || c.creadoPorId === PERFIL.id;
+  }
+
+  // Editar la INFORMACIÓN de un caso (paciente, estudio, diagnóstico, etc.) está permitido
+  // a cualquier usuario registrado — es una plataforma colaborativa. Lo que nunca se permite,
+  // ni siquiera al editar, es cambiar la autoría (aportadoPor / creadoPorId): ese campo no se
+  // expone como editable en el formulario y el guardado nunca lo toca.
+  function puedeEditarCaso(c){
+    return !!PERFIL;
+  }
+
+  function casosEnriquecidos(){
+    return CASOS.map(c => ({ c, cons: estadoConservacion(c.fechaIngreso) }));
+  }
+
+  function medicosUnicos(){
+    const set = new Map();
+    CASOS.forEach(c=> set.set(c.aportadoPor, c.rol));
+    return Array.from(set.entries());
+  }
+
+  function renderApp(){
+    const app = document.getElementById("app");
+    const iniciales = (PERFIL.nombres[0]||"") + (PERFIL.apellidos[0]||"");
+    app.innerHTML = `
+      <header class="topbar">
+        <div class="brand">
+          <h1>Banco de Casos Radiológicos</h1>
+          <div class="hospital">${HOSPITAL}</div>
+        </div>
+        <div class="userbox">
+          <div class="userchip">
+            <div class="name">${PERFIL.nombres} ${PERFIL.apellidos}</div>
+            <div class="role">${PERFIL.rol}</div>
+          </div>
+          <div class="avatar">${up(iniciales)}</div>
+          <button class="linkbtn" id="btn-cambiar-usuario">Cerrar sesión</button>
+        </div>
+      </header>
+      <nav class="tabs">
+        <button data-tab="biblioteca">Biblioteca de casos</button>
+        <button data-tab="respaldos">Estudios por respaldar<span class="badge" id="tab-badge" style="display:none"></span></button>
+        <button data-tab="catalogo">Catálogo de estudios</button>
+        ${PERFIL.rol==="ADMINISTRADOR" ? `<button data-tab="usuarios">Usuarios</button>` : ""}
+      </nav>
+      <main id="main"></main>
+      <footer style="text-align:center; padding:22px 16px 30px; font-size:11px; color:var(--ink-faint); line-height:1.6;">
+        © 2026 Todos los derechos reservados.<br>
+        Donativo académico del posgradista Carlos Lara. Para aprender más y servir mejor.<br>
+        Uso interno exclusivamente académico y médico, respetando la privacidad y confidencialidad.
+      </footer>
+    `;
+    document.getElementById("btn-cambiar-usuario").addEventListener("click", async ()=>{
+      await borrarSesionRecordada(); PERFIL=null; renderLogin();
+    });
+    app.querySelectorAll("nav.tabs button").forEach(b=>{
+      b.addEventListener("click", ()=>{ TAB=b.dataset.tab; renderMain(); });
+    });
+    renderMain(true);
+  }
+
+  function renderMain(updateBadge){
+    document.querySelectorAll("nav.tabs button").forEach(b=> b.classList.toggle("active", b.dataset.tab===TAB));
+    const enr = casosEnriquecidos();
+    const criticos = enr.filter(x=> x.cons.diffDays < 90).length;
+    const badge = document.getElementById("tab-badge");
+    if(badge){ if(criticos>0){ badge.style.display="inline-block"; badge.textContent=criticos; } else badge.style.display="none"; }
+
+    if(TAB==="biblioteca") renderBiblioteca();
+    else if(TAB==="respaldos") renderRespaldos();
+    else if(TAB==="catalogo") renderCatalogoTab();
+    else if(TAB==="usuarios") renderUsuarios();
+  }
+
+  function filtrarCasos(lista){
+    const t = normKey(filtro.texto);
+    return lista.filter(({c})=>{
+      if(filtro.medico!=="TODOS" && c.aportadoPor!==filtro.medico) return false;
+      if(filtro.area!=="TODOS" && c.area!==filtro.area) return false;
+      if(t){
+        const hay = normKey([c.paciente,c.hcl,c.orden,c.estudio,c.area,c.diagnostico,c.aportadoPor].join(" "));
+        if(!hay.includes(t)) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderBiblioteca(){
+    const main = document.getElementById("main");
+    const medicos = medicosUnicos();
+
+    main.innerHTML = `
+      <div class="panel-head">
+        <div>
+          <h2>Biblioteca de casos</h2>
+          <p>${CASOS.length} caso${CASOS.length===1?"":"s"} registrados por el equipo. Todos los usuarios autorizados pueden consultarlos.</p>
+        </div>
+        <button class="btn-primary" id="btn-nuevo">+ Agregar caso</button>
+      </div>
+      <div class="filterbar">
+        <input type="text" id="f-texto" placeholder="Buscar por paciente, HCL, orden, diagnóstico, estudio o médico…" value="${filtro.texto}">
+        <select id="f-medico">
+          <option value="TODOS">Todos los médicos</option>
+          ${medicos.map(([n,r])=> `<option value="${n}" ${filtro.medico===n?"selected":""}>${n} — ${r}</option>`).join("")}
+        </select>
+        <select id="f-estado">
+          <option value="TODOS">Todos los estados</option>
+          ${Object.entries(ESTADO_LABEL).map(([k,v])=> `<option value="${k}" ${filtro.estado===k?"selected":""}>${v}</option>`).join("")}
+        </select>
+        <select id="f-area">
+          <option value="TODOS">Todas las áreas</option>
+          ${AREAS.map(a=> `<option value="${a}" ${filtro.area===a?"selected":""}>${a}</option>`).join("")}
+        </select>
+      </div>
+      <div id="resultados-biblioteca"></div>
+    `;
+    document.getElementById("btn-nuevo").addEventListener("click", ()=> abrirModalCaso(null));
+
+    const actualizarDebounced = debounce(actualizarResultadosBiblioteca, 150);
+    document.getElementById("f-texto").addEventListener("input", e=>{ filtro.texto=e.target.value; actualizarDebounced(); });
+    document.getElementById("f-medico").addEventListener("change", e=>{ filtro.medico=e.target.value; actualizarResultadosBiblioteca(); });
+    document.getElementById("f-estado").addEventListener("change", e=>{ filtro.estado=e.target.value; actualizarResultadosBiblioteca(); });
+    document.getElementById("f-area").addEventListener("change", e=>{ filtro.area=e.target.value; actualizarResultadosBiblioteca(); });
+
+    actualizarResultadosBiblioteca();
+  }
+
+  // Solo reconstruye la lista de resultados (no la barra de filtros ni el input de búsqueda),
+  // así escribir en el buscador NUNCA le quita el foco al campo, ni reconstruye cosas que no cambiaron.
+  function actualizarResultadosBiblioteca(){
+    const contenedor = document.getElementById("resultados-biblioteca");
+    if(!contenedor) return; // la pestaña pudo haber cambiado mientras el debounce esperaba
+    let enr = casosEnriquecidos();
+    if(filtro.estado!=="TODOS") enr = enr.filter(x=> x.cons.estado===filtro.estado);
+    enr = filtrarCasos(enr);
+    enr.sort((a,b)=> new Date(b.c.fechaIngreso) - new Date(a.c.fechaIngreso));
+    contenedor.innerHTML = enr.length===0
+      ? `<div class="empty"><h3>No hay casos que coincidan</h3><p>Ajusta la búsqueda o agrega el primer caso docente.</p></div>`
+      : tablaCasos(enr);
+    bindAccionesCaso(contenedor);
+  }
+
+  function tablaCasos(enr, respaldoView){
+    return `
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th>Caso</th><th>Paciente</th><th>HCL / Orden</th><th>Estudio</th><th>Área</th><th>Diagnóstico docente</th>
+          <th>Aportado por</th><th>Fecha de ingreso</th><th>Estado de conservación</th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+          ${enr.map(({c,cons})=>`
+            <tr class="${cons.estado}">
+              <td data-label="Caso"><span class="mono caseid">#${c.id}</span></td>
+              <td data-label="Paciente"><span class="paciente">${c.paciente}</span></td>
+              <td data-label="HCL / Orden"><span class="mono">${c.hcl}</span><br><span class="mono" style="color:var(--ink-soft); font-size:12px;">${c.orden}</span></td>
+              <td data-label="Estudio">${c.estudio}</td>
+              <td data-label="Área">${c.area || "—"}</td>
+              <td data-label="Diagnóstico docente" class="diag">${c.diagnostico}</td>
+              <td data-label="Aportado por">
+                <div class="aportadopor">${c.aportadoPor}</div>
+                <div class="rolechip">${c.rol}</div>
+              </td>
+              <td data-label="Fecha de ingreso" class="mono">${fmtDate(c.fechaIngreso)}</td>
+              <td data-label="Estado de conservación">
+                <span class="badge-estado ${cons.estado}">${ESTADO_LABEL[cons.estado]}</span>
+                <div class="tiemporestante">${cons.restante}</div>
+                ${cons.mensaje2 ? `<div class="alerta-texto ${cons.estado}">${cons.mensaje2}</div>` : ""}
+              </td>
+              <td data-label="">
+                <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                  ${puedeEditarCaso(c) ? `<button class="btn-secondary" data-editar-caso="${c.id}" style="padding:6px 10px; font-size:12px;">Editar</button>` : ""}
+                  ${puedeEliminarCaso(c) ? `<button class="btn-danger" data-del="${c.id}">Eliminar</button>` : ""}
+                </div>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  function estudioEnUso(nombreEstudio){
+    return CASOS.some(c=> c.estudio===nombreEstudio);
+  }
+
+  function esAdministrador(){ return !!PERFIL && PERFIL.rol === "ADMINISTRADOR"; }
+  // Gestionar el catálogo (crear/editar/eliminar estudios) está permitido a ADMINISTRADOR y
+  // POSGRADISTA — misma interfaz, mismos permisos, sin distinción. El resto de acciones
+  // exclusivamente administrativas (usuarios, cambiar el propietario de un caso) siguen
+  // usando esAdministrador() y no esto.
+  function puedeGestionarCatalogo(){ return !!PERFIL && (PERFIL.rol === "ADMINISTRADOR" || PERFIL.rol === "POSGRADISTA"); }
+
+  async function eliminarEstudioPorId(idEstudio, confirmFn){
+    if(!puedeGestionarCatalogo()){
+      console.error("Eliminar estudio: usuario sin permiso para gestionar el catálogo");
+      return { ok:false, motivo:"sin_permiso" };
+    }
+    confirmFn = confirmFn || confirmarAccion;
+    const estudio = CATALOGO.find(e=> e.id===idEstudio);
+    if(!estudio){ console.error("Eliminar estudio: no se encontró", idEstudio); return { ok:false, motivo:"no_encontrado" }; }
+    if(estudioEnUso(estudio.nombre)){
+      console.error("Eliminar estudio: bloqueado, ya está en uso", idEstudio);
+      return { ok:false, motivo:"en_uso" };
+    }
+    if(!(await confirmFn("¿DESEA ELIMINAR ESTE TIPO DE ESTUDIO DEL CATÁLOGO?"))){
+      return { ok:false, motivo:"cancelado" };
+    }
+    const listaAnterior = CATALOGO;
+    const listaNueva = CATALOGO.filter(e=> e.id!==idEstudio);
+    try{
+      await eliminarRegistro("catalogo_estudios", idEstudio);
+      CATALOGO = listaNueva;
+      return { ok:true };
+    }catch(err){
+      console.error("Error al eliminar el estudio:", err);
+      CATALOGO = listaAnterior;
+      toast("NO SE PUDO ELIMINAR EL ESTUDIO. INTENTA DE NUEVO.");
+      return { ok:false, motivo:"error_guardado", error: err };
+    }
+  }
+
+  async function eliminarCasoPorId(idAEliminar, confirmFn, boton){
+    confirmFn = confirmFn || confirmarAccion;
+    const caso = CASOS.find(c=> c.id === idAEliminar);
+    if(!caso){
+      console.error("Eliminar caso: no se encontró el caso con id", idAEliminar);
+      return { ok:false, motivo:"no_encontrado" };
+    }
+    if(!puedeEliminarCaso(caso)){
+      console.error("Eliminar caso: usuario sin permiso intentó eliminar", idAEliminar, "usuario:", PERFIL && PERFIL.id);
+      toast("NO TIENES PERMISO PARA ELIMINAR ESTE CASO");
+      return { ok:false, motivo:"sin_permiso" };
+    }
+    if(!(await confirmFn("¿DESEA ELIMINAR ESTE CASO?\n\nEsta acción no se puede deshacer."))){
+      return { ok:false, motivo:"cancelado" };
+    }
+
+    const listaAnterior = CASOS;
+    const listaNueva = CASOS.filter(c=> c.id !== idAEliminar);
+    if(boton) boton.disabled = true;
+    try{
+      await eliminarRegistro("casos", idAEliminar);
+      CASOS = listaNueva;
+      toast("CASO ELIMINADO");
+      return { ok:true };
+    }catch(err){
+      console.error("Error al eliminar el caso en el almacenamiento compartido:", err);
+      CASOS = listaAnterior;
+      if(boton) boton.disabled = false;
+      toast("NO SE PUDO ELIMINAR EL CASO. INTENTA DE NUEVO.");
+      return { ok:false, motivo:"error_guardado", error: err };
+    }
+  }
+
+  function bindAccionesCaso(root){
+    root.querySelectorAll("[data-del]").forEach(b=>{
+      b.addEventListener("click", async ()=>{
+        const resultado = await eliminarCasoPorId(b.dataset.del, confirmarAccion, b);
+        if(resultado.ok) renderMain();
+      });
+    });
+    root.querySelectorAll("[data-editar-caso]").forEach(b=>{
+      b.addEventListener("click", ()=>{
+        const caso = CASOS.find(c=> c.id === b.dataset.editarCaso);
+        if(!caso){ console.error("Editar caso: no se encontró", b.dataset.editarCaso); return; }
+        if(!puedeEditarCaso(caso)){ console.error("Editar caso: sin permiso", b.dataset.editarCaso); return; }
+        abrirModalCaso(caso);
+      });
+    });
+  }
+
+  function renderRespaldos(){
+    const main = document.getElementById("main");
+    const enrTodos = casosEnriquecidos().filter(x=> x.cons.diffDays < 180);
+    const urgentes = enrTodos.filter(x=>x.cons.estado==="urgente" || x.cons.estado==="vencido").length;
+    const prioritarios = enrTodos.filter(x=>x.cons.estado==="prioridad").length;
+    const proximos = enrTodos.filter(x=>x.cons.estado==="proximo").length;
+
+    main.innerHTML = `
+      <div class="panel-head">
+        <div>
+          <h2>Estudios por respaldar</h2>
+          <p>Casos que requieren descargar el estudio original del PACS antes de que cumplan 2 años. Visible para todo el equipo.</p>
+        </div>
+      </div>
+      <div class="summary-row">
+        <div class="chip urgente"><div class="n">${urgentes}</div><div class="l">Urgentes · &lt; 30 días</div></div>
+        <div class="chip prioridad"><div class="n">${prioritarios}</div><div class="l">Prioritarios · 1–3 meses</div></div>
+        <div class="chip proximo"><div class="n">${proximos}</div><div class="l">Próximos · 3–6 meses</div></div>
+      </div>
+      <div class="filterbar">
+        <input type="text" id="f-texto" placeholder="Buscar por paciente, HCL, orden, diagnóstico, estudio o médico…" value="${filtro.texto}">
+      </div>
+      <div id="resultados-respaldos"></div>
+    `;
+    const actualizarDebounced = debounce(actualizarResultadosRespaldos, 150);
+    document.getElementById("f-texto").addEventListener("input", e=>{ filtro.texto=e.target.value; actualizarDebounced(); });
+    actualizarResultadosRespaldos();
+  }
+
+  function actualizarResultadosRespaldos(){
+    const contenedor = document.getElementById("resultados-respaldos");
+    if(!contenedor) return;
+    let enr = casosEnriquecidos().filter(x=> x.cons.diffDays < 180);
+    enr = filtrarCasos(enr);
+    enr.sort((a,b)=> a.cons.diffDays - b.cons.diffDays);
+    contenedor.innerHTML = enr.length===0
+      ? `<div class="empty"><h3>Sin pendientes de respaldo</h3><p>Ningún estudio está a menos de 6 meses de cumplir 2 años.</p></div>`
+      : tablaCasos(enr, true);
+    bindAccionesCaso(contenedor);
+  }
+
+  function renderCatalogoTab(){
+    const main = document.getElementById("main");
+    const esAdmin = puedeGestionarCatalogo();
+    const estudiosEnUso = new Set(CASOS.map(c=> c.estudio));
+
+    function filaEstudio(e){
+      const enUso = estudiosEnUso.has(e.nombre);
+      if(!esAdmin){
+        return `<span style="background:var(--bg); border:1px solid var(--border); border-radius:20px; padding:5px 12px; font-size:12.5px;">${e.nombre}</span>`;
+      }
+      return `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 2px; border-bottom:1px solid var(--border);">
+          <div style="font-size:13.5px;">${e.nombre}</div>
+          <div style="display:flex; align-items:center; gap:4px;">
+            ${enUso ? `<span style="font-size:11px; color:var(--ink-faint); margin-right:4px;">En uso</span>` : ""}
+            <button class="btn-secondary" data-editar-estudio="${e.id}" style="padding:4px 10px; font-size:11.5px;">Editar</button>
+            ${enUso ? "" : `<button data-eliminar-estudio="${e.id}" title="Eliminar estudio" style="background:none;border:none;color:var(--urgente);font-size:18px;font-weight:800;cursor:pointer;line-height:1;padding:2px 8px;">&times;</button>`}
+          </div>
+        </div>`;
+    }
+
+    function seccionModalidad(titulo, modalidad){
+      const items = CATALOGO.filter(e=> e.modalidad===modalidad && e.activo);
+      if(items.length===0 && !esAdmin) return "";
+      // Dentro de TOMOGRAFÍA, agrupar visualmente por categoría (región del cuerpo).
+      const subgrupos = [];
+      const vistos = new Set();
+      items.forEach(e=>{ if(!vistos.has(e.categoria)){ vistos.add(e.categoria); subgrupos.push(e.categoria); } });
+      const usaSubgrupos = modalidad==="TOMOGRAFÍA" && subgrupos.length>1;
+
+      return `
+        <div style="padding:16px 18px; border-bottom:1px solid var(--border);">
+          <div style="font-weight:800; font-size:13px; text-transform:uppercase; letter-spacing:0.03em; color:var(--accent-dark); margin-bottom:10px;">${titulo}</div>
+          ${items.length===0
+            ? `<div style="font-size:12.5px; color:var(--ink-faint);">Todavía no hay estudios aquí.</div>`
+            : usaSubgrupos
+              ? subgrupos.map(cat=> `
+                  <div style="margin-bottom:10px;">
+                    <div style="font-size:11px; font-weight:700; color:var(--ink-faint); text-transform:uppercase; letter-spacing:0.02em; margin:8px 0 2px;">${cat}</div>
+                    <div>${items.filter(e=>e.categoria===cat).map(filaEstudio).join("")}</div>
+                  </div>`).join("")
+              : esAdmin
+                ? `<div>${items.map(filaEstudio).join("")}</div>`
+                : `<div style="display:flex; flex-wrap:wrap; gap:8px;">${items.map(filaEstudio).join("")}</div>`}
+        </div>`;
+    }
+
+    main.innerHTML = `
+      <div class="panel-head">
+        <div>
+          <h2>Catálogo de tipos de estudio</h2>
+          <p>Busca y selecciona al registrar un caso. Los estudios ya usados en algún caso no se pueden eliminar.</p>
+        </div>
+        ${esAdmin ? `<button class="btn-primary" id="btn-nuevo-estudio">+ Agregar estudio</button>` : ""}
+      </div>
+      <div class="tablewrap" style="padding: 4px 0; margin-bottom:20px;">
+        ${MODALIDADES.map(m=> seccionModalidad(m==="TOMOGRAFÍA" ? "Tomografía (TC)" : m==="RADIOGRAFÍA" ? "Radiografía (RX)" : m==="ECOGRAFÍA" ? "Ecografía (ECO)" : "Resonancia magnética (RM)", m)).join("")}
+      </div>
+      <div class="panel-head"><div><h2 style="font-size:16px;">Áreas del cuerpo</h2><p>Clasificación usada para filtrar casos por región o sistema.</p></div></div>
+      <div class="tablewrap" style="padding: 14px 18px;">
+        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+          ${AREAS.map(a=>`<span style="background:var(--bg); border:1px solid var(--border); border-radius:20px; padding:5px 12px; font-size:12.5px;">${a}</span>`).join("")}
+        </div>
+      </div>
+    `;
+
+    if(!esAdmin) return;
+
+    document.getElementById("btn-nuevo-estudio").addEventListener("click", ()=> abrirModalAgregarEstudio());
+
+    main.querySelectorAll("[data-editar-estudio]").forEach(b=>{
+      b.addEventListener("click", ()=>{
+        const est = CATALOGO.find(e=> e.id===b.dataset.editarEstudio);
+        if(est) abrirModalEditarEstudio(est);
+      });
+    });
+    main.querySelectorAll("[data-eliminar-estudio]").forEach(b=>{
+      b.addEventListener("click", async ()=>{
+        const resultado = await eliminarEstudioPorId(b.dataset.eliminarEstudio, confirmarAccion);
+        if(resultado.ok) renderCatalogoTab();
+      });
+    });
+  }
+
+  // Lista de referencia por modalidad, usada en el paso 2 del asistente "+ Agregar estudio"
+  // para ofrecer los estudios típicos que todavía no estén en el catálogo.
+  function estudiosSugeridosPorModalidad(modalidad){
+    return CATALOGO_INICIAL.filter(([, m])=> m===modalidad);
+  }
+
+  function abrirModalAgregarEstudio(){
+    const back = document.createElement("div");
+    back.className = "modal-backdrop";
+    back.innerHTML = `
+      <div class="modal" style="max-width:480px;">
+        <div class="modal-header">
+          <h3>Agregar estudio</h3>
+          <button class="modal-close" id="ae-close">&times;</button>
+        </div>
+        <div class="modal-body" id="ae-body">
+          <div class="field">
+            <label>Paso 1 · Selecciona la modalidad</label>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+              ${MODALIDADES.map(m=> `<button type="button" class="btn-secondary" data-modalidad="${m}" style="padding:14px 10px; font-weight:700;">${m}</button>`).join("")}
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" id="ae-cancel">Cancelar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(back);
+    document.getElementById("ae-close").addEventListener("click", ()=>back.remove());
+    document.getElementById("ae-cancel").addEventListener("click", ()=>back.remove());
+    back.addEventListener("click", (e)=>{ if(e.target===back) back.remove(); });
+
+    back.querySelectorAll("[data-modalidad]").forEach(b=>{
+      b.addEventListener("click", ()=> mostrarPaso2(b.dataset.modalidad));
+    });
+
+    function mostrarPaso2(modalidad){
+      const sugeridos = estudiosSugeridosPorModalidad(modalidad)
+        .filter(([nombre])=> !buscarEstudioDuplicado(nombre, CATALOGO));
+
+      const body = document.getElementById("ae-body");
+      body.innerHTML = `
+        <div class="field">
+          <label>Paso 2 · ${modalidad} — selecciona los estudios que quieres agregar</label>
+          ${sugeridos.length===0
+            ? `<div class="hint">Ya están todos los estudios sugeridos de esta modalidad en el catálogo.</div>`
+            : `<div style="max-height:260px; overflow-y:auto; border:1px solid var(--border); border-radius:var(--radius);">
+                ${sugeridos.map(([nombre],i)=> `
+                  <label style="display:flex; align-items:center; gap:10px; padding:9px 12px; font-size:13.5px; border-bottom:1px solid var(--border); cursor:pointer;">
+                    <input type="checkbox" class="ae-check" value="${nombre}" data-categoria="${sugeridos[i][2]||'GENERAL'}">
+                    ${nombre}
+                  </label>`).join("")}
+              </div>`}
+        </div>
+        <div class="field" style="margin-top:14px;">
+          <label>+ Agregar otro estudio (opcional)</label>
+          <input type="text" id="ae-otro" data-upper placeholder="Nombre de un estudio que no esté en la lista">
+        </div>
+      `;
+      const footer = back.querySelector(".modal-footer");
+      footer.innerHTML = `
+        <button class="btn-secondary" id="ae-atras">Atrás</button>
+        <button class="btn-primary" id="ae-guardar">Agregar</button>
+      `;
+      document.getElementById("ae-atras").addEventListener("click", ()=> back.remove()); // sencillo: reabrir el asistente si se equivocó de modalidad
+      document.getElementById("ae-guardar").addEventListener("click", async ()=>{
+        const seleccionados = Array.from(body.querySelectorAll(".ae-check:checked")).map(chk=> ({ nombre: chk.value, categoria: chk.dataset.categoria }));
+        const otro = up(document.getElementById("ae-otro").value);
+        if(otro && !buscarEstudioDuplicado(otro, CATALOGO)){
+          seleccionados.push({ nombre: otro, categoria: "GENERAL" });
+        }
+        if(seleccionados.length===0){ back.remove(); return; }
+
+        const copiaCatalogoAnterior = CATALOGO.slice();
+        const nuevasEntradas = seleccionados.map(s=> ({ id: generarIdEstudio(), nombre: s.nombre, modalidad, categoria: s.categoria, activo:true, usos:0 }));
+        nuevasEntradas.forEach(e=> CATALOGO.push(e));
+        try{
+          await guardarRegistrosEnLote("catalogo_estudios", nuevasEntradas);
+          back.remove();
+          renderCatalogoTab();
+        }catch(err){
+          console.error("Error al agregar estudios:", err);
+          CATALOGO = copiaCatalogoAnterior;
+          toast("NO SE PUDO AGREGAR EL ESTUDIO. INTENTA DE NUEVO.");
+        }
+      });
+    }
+  }
+
+  function abrirModalEditarEstudio(estudioExistente){
+    const back = document.createElement("div");
+    back.className = "modal-backdrop";
+    back.innerHTML = `
+      <div class="modal" style="max-width:420px;">
+        <div class="modal-header">
+          <h3>Editar estudio</h3>
+          <button class="modal-close" id="ee-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="field"><label>Nombre del estudio</label><input type="text" id="ee-nombre" data-upper value="${estudioExistente.nombre}"></div>
+          <div class="field">
+            <label>Modalidad</label>
+            <select id="ee-modalidad">
+              ${MODALIDADES.map(m=> `<option value="${m}" ${estudioExistente.modalidad===m?"selected":""}>${m}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field"><label>Categoría (región del cuerpo)</label><input type="text" id="ee-categoria" data-upper value="${estudioExistente.categoria||""}" placeholder="EJ: TÓRAX, ABDOMEN Y PELVIS…"></div>
+          <div id="ee-duplicado" style="display:none; background: var(--urgente-tint); border:1px solid var(--urgente); border-radius:var(--radius); padding:10px 12px; font-size:12.5px;"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" id="ee-cancel">Cancelar</button>
+          <button class="btn-primary" id="ee-guardar">Guardar cambios</button>
+        </div>
+      </div>`;
+    document.body.appendChild(back);
+    uppercaseInputs(back);
+    document.getElementById("ee-close").addEventListener("click", ()=>back.remove());
+    document.getElementById("ee-cancel").addEventListener("click", ()=>back.remove());
+    back.addEventListener("click", (e)=>{ if(e.target===back) back.remove(); });
+
+    document.getElementById("ee-guardar").addEventListener("click", async ()=>{
+      const nombreNuevo = up(document.getElementById("ee-nombre").value);
+      const modalidadNueva = document.getElementById("ee-modalidad").value;
+      const categoriaNueva = up(document.getElementById("ee-categoria").value) || "GENERAL";
+      if(!nombreNuevo){ toast("ESCRIBE EL NOMBRE DEL ESTUDIO"); return; }
+
+      const otros = CATALOGO.filter(e=> e.id!==estudioExistente.id);
+      const duplicado = buscarEstudioDuplicado(nombreNuevo, otros);
+      if(duplicado){
+        const aviso = document.getElementById("ee-duplicado");
+        aviso.style.display = "block";
+        aviso.innerHTML = `ESTE ESTUDIO YA EXISTE COMO:<br><b>${duplicado.nombre}</b>`;
+        return;
+      }
+
+      const nombreAnterior = estudioExistente.nombre;
+      const estadoAnteriorEstudio = { ...estudioExistente };
+      const casosAfectados = CASOS.filter(c=> c.estudio===nombreAnterior);
+      const estadosAnterioresCasos = casosAfectados.map(c=> ({ ...c }));
+      estudioExistente.nombre = nombreNuevo;
+      estudioExistente.modalidad = modalidadNueva;
+      estudioExistente.categoria = categoriaNueva;
+      invalidarCacheEstudio(estudioExistente);
+      try{
+        if(nombreAnterior !== nombreNuevo && casosAfectados.length>0){
+          casosAfectados.forEach(c=> c.estudio = nombreNuevo);
+          await guardarRegistrosEnLote("casos", casosAfectados);
+        }
+        await guardarRegistro("catalogo_estudios", estudioExistente);
+        back.remove();
+        renderCatalogoTab();
+      }catch(err){
+        console.error("Error al editar el estudio:", err);
+        Object.assign(estudioExistente, estadoAnteriorEstudio);
+        invalidarCacheEstudio(estudioExistente);
+        casosAfectados.forEach((c,i)=> Object.assign(c, estadosAnterioresCasos[i]));
+        toast("NO SE PUDO GUARDAR EL ESTUDIO. INTENTA DE NUEVO.");
+      }
+    });
+  }
+
+
+  /* ============================= USUARIOS (ADMIN) ============================= */
+  function renderUsuarios(){
+    const main = document.getElementById("main");
+    main.innerHTML = `
+      <div class="panel-head">
+        <div>
+          <h2>Usuarios</h2>
+          <p>Registra a los posgradistas y médicos tratantes autorizados. Solo aparecen en la pantalla de ingreso los usuarios activos.</p>
+        </div>
+        <button class="btn-primary" id="btn-nuevo-usuario">+ Agregar usuario</button>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Nombres</th><th>Apellidos</th><th>Tipo</th><th>Estado</th><th></th></tr></thead>
+          <tbody>
+            ${USUARIOS.map(u=>`
+              <tr>
+                <td data-label="Nombres">${u.nombres}</td>
+                <td data-label="Apellidos">${u.apellidos}</td>
+                <td data-label="Tipo">${u.rol}</td>
+                <td data-label="Estado">
+                  <span class="badge-estado ${u.activo?"seguro":"vencido"}">${u.activo?"ACTIVO":"INACTIVO"}</span>
+                </td>
+                <td data-label="" style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <button class="btn-secondary" data-editar="${u.id}" style="padding:6px 10px; font-size:12px;">Editar</button>
+                  ${u.rol!=="ADMINISTRADOR" ? `<button class="btn-danger" data-toggle="${u.id}" style="border-color:${u.activo?"var(--urgente)":"var(--seguro)"}; color:${u.activo?"var(--urgente)":"var(--seguro)"};">${u.activo?"Desactivar":"Activar"}</button>` : ""}
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+    document.getElementById("btn-nuevo-usuario").addEventListener("click", ()=> abrirModalUsuario(null));
+    main.querySelectorAll("[data-editar]").forEach(b=>{
+      b.addEventListener("click", ()=> abrirModalUsuario(USUARIOS.find(u=> u.id===b.dataset.editar)));
+    });
+    main.querySelectorAll("[data-toggle]").forEach(b=>{
+      b.addEventListener("click", async ()=>{
+        const u = USUARIOS.find(x=> x.id===b.dataset.toggle);
+        const anterior = u.activo;
+        u.activo = !anterior;
+        b.disabled = true;
+        try{
+          await guardarUsuarios(USUARIOS);
+          toast(u.activo ? "USUARIO ACTIVADO" : "USUARIO DESACTIVADO");
+          renderUsuarios();
+        }catch(err){
+          console.error("Error al cambiar el estado del usuario:", err);
+          u.activo = anterior;
+          b.disabled = false;
+          toast("NO SE PUDO ACTUALIZAR EL USUARIO. INTENTA DE NUEVO.");
+        }
+      });
+    });
+  }
+
+  function abrirModalUsuario(usuarioExistente){
+    const esAdmin = usuarioExistente && usuarioExistente.rol==="ADMINISTRADOR";
+    const back = document.createElement("div");
+    back.className = "modal-backdrop";
+    back.innerHTML = `
+      <div class="modal" style="max-width:460px;">
+        <div class="modal-header">
+          <h3>${usuarioExistente ? "Editar usuario" : "Agregar usuario"}</h3>
+          <button class="modal-close" id="mu-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="field"><label>Nombres</label><input type="text" id="mu-nombres" data-upper value="${usuarioExistente?usuarioExistente.nombres:""}" placeholder="EJ: CARLOS ANDRÉS"></div>
+          <div class="field"><label>Apellidos</label><input type="text" id="mu-apellidos" data-upper value="${usuarioExistente?usuarioExistente.apellidos:""}" placeholder="EJ: LARA MOSQUERA"></div>
+          <div class="field">
+            <label>Tipo de usuario</label>
+            ${esAdmin ? `<div class="hint">Este usuario es el administrador del sistema.</div>` : `
+              <div class="segmented" id="mu-seg-rol">
+                <button type="button" data-v="POSGRADISTA">POSGRADISTA</button>
+                <button type="button" data-v="MÉDICO TRATANTE">TRATANTE</button>
+              </div>
+            `}
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" id="mu-cancel">Cancelar</button>
+          <button class="btn-primary" id="mu-guardar">${usuarioExistente ? "Guardar cambios" : "Agregar usuario"}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(back);
+    uppercaseInputs(back);
+    document.getElementById("mu-close").addEventListener("click", ()=>back.remove());
+    document.getElementById("mu-cancel").addEventListener("click", ()=>back.remove());
+    back.addEventListener("click", (e)=>{ if(e.target===back) back.remove(); });
+
+    let rol = usuarioExistente ? usuarioExistente.rol : "POSGRADISTA";
+    const segRol = document.getElementById("mu-seg-rol");
+    if(segRol){
+      function paint(){ segRol.querySelectorAll("button").forEach(b=> b.classList.toggle("sel", b.dataset.v===rol)); }
+      paint();
+      segRol.addEventListener("click", e=>{ if(e.target.tagName==="BUTTON"){ rol=e.target.dataset.v; paint(); } });
+    }
+
+    document.getElementById("mu-guardar").addEventListener("click", async ()=>{
+      const nombres = up(document.getElementById("mu-nombres").value);
+      const apellidos = up(document.getElementById("mu-apellidos").value);
+      if(!nombres || !apellidos){ toast("COMPLETA NOMBRES Y APELLIDOS"); return; }
+      const copiaAnterior = USUARIOS.slice();
+      if(usuarioExistente){
+        usuarioExistente.nombres = nombres;
+        usuarioExistente.apellidos = apellidos;
+        if(!esAdmin) usuarioExistente.rol = rol;
+      } else {
+        USUARIOS.push({ id: generarIdUsuario(), nombres, apellidos, rol, activo:true });
+      }
+      try{
+        await guardarUsuarios(USUARIOS);
+        back.remove();
+        toast(usuarioExistente ? "USUARIO ACTUALIZADO" : "USUARIO AGREGADO");
+        renderUsuarios();
+      }catch(err){
+        console.error("Error al guardar el usuario:", err);
+        USUARIOS = copiaAnterior;
+        toast("NO SE PUDO GUARDAR EL USUARIO. INTENTA DE NUEVO.");
+      }
+    });
+  }
+
+  /* ============================= MODAL NUEVO CASO ============================= */
+  function abrirModalCaso(casoExistente){
+    const back = document.createElement("div");
+    back.className = "modal-backdrop";
+    back.innerHTML = `
+      <div class="modal">
+        <div class="modal-header">
+          <h3>${casoExistente ? "Editar caso" : "Agregar caso"}</h3>
+          <button class="modal-close" id="mc-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="readonly-row">
+            <div class="ro"><b>Fecha de ingreso</b>${fmtDate(casoExistente ? casoExistente.fechaIngreso : todayISO())}</div>
+            <div class="ro"><b>Hospital</b>${HOSPITAL}</div>
+            ${casoExistente && esAdministrador() ? "" : `<div class="ro"><b>Aportado por</b>${casoExistente ? casoExistente.aportadoPor + " — " + casoExistente.rol : nombreCompletoPerfil() + " — " + PERFIL.rol}</div>`}
+          </div>
+          ${casoExistente && esAdministrador() ? `
+          <div class="field">
+            <label>Propietario del caso (solo el administrador puede cambiarlo)</label>
+            <select id="nc-propietario">
+              ${USUARIOS.filter(u=> u.activo || u.id===casoExistente.creadoPorId).map(u=> `<option value="${u.id}" ${u.id===casoExistente.creadoPorId?"selected":""}>${u.nombres} ${u.apellidos} — ${u.rol}</option>`).join("")}
+            </select>
+          </div>` : ""}
+          <div class="field"><label>Nombre del paciente</label><input type="text" id="nc-paciente" data-upper value="${casoExistente?casoExistente.paciente:""}" placeholder="EJ: MARÍA FERNANDA XXXXX"></div>
+          <div class="row2">
+            <div class="field"><label>HCL / Historia clínica</label><input type="text" id="nc-hcl" data-upper value="${casoExistente?casoExistente.hcl:""}" placeholder="EJ: 458721"></div>
+            <div class="field"><label>Número de orden</label><input type="text" id="nc-orden" data-upper value="${casoExistente?casoExistente.orden:""}" placeholder="EJ: 2026-45897"></div>
+          </div>
+          <div class="field combo">
+            <label>Tipo de estudio</label>
+            <input type="text" id="nc-estudio" data-upper autocomplete="off" value="${casoExistente?casoExistente.estudio:""}" placeholder="Buscar o escribir un tipo de estudio…">
+            <div id="nc-estudio-list"></div>
+            <div class="hint">Si el estudio no existe, podrás crearlo y quedará disponible para todo el equipo.</div>
+          </div>
+          <div class="field combo">
+            <label>Área del cuerpo</label>
+            <input type="text" id="nc-area" data-upper autocomplete="off" value="${casoExistente?casoExistente.area:""}" placeholder="EJ: TÓRAX, CABEZA, ABDOMEN, PELVIS, TUMORAL, HUESO…">
+            <div id="nc-area-list"></div>
+          </div>
+          <div class="field">
+            <label>Diagnóstico o hallazgo relevante para enseñanza</label>
+            <textarea id="nc-diagnostico" data-upper placeholder="EJ: SÍNDROME DE KARTAGENER">${casoExistente?casoExistente.diagnostico:""}</textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" id="mc-cancel">Cancelar</button>
+          <button class="btn-primary" id="mc-guardar">${casoExistente ? "Guardar cambios" : "Guardar caso"}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(back);
+    uppercaseInputs(back);
+    document.getElementById("mc-close").addEventListener("click", ()=>back.remove());
+    document.getElementById("mc-cancel").addEventListener("click", ()=>back.remove());
+    back.addEventListener("click", (e)=>{ if(e.target===back) back.remove(); });
+
+    let estudioSeleccionado = casoExistente ? casoExistente.estudio : "";
+    const inputEstudio = document.getElementById("nc-estudio");
+    const listEl = document.getElementById("nc-estudio-list");
+
+    function pintarLista(){
+      const q = inputEstudio.value.trim();
+      const disponibles = estudiosDisponibles();
+      if(!q){
+        const frecuentes = estudiosFrecuentes();
+        listEl.innerHTML = `<div class="combo-list">
+          <div class="combo-group">FRECUENTES</div>
+          ${frecuentes.map(e=>`<div class="combo-item" data-v="${e.nombre}">${e.nombre}</div>`).join("")}
+          <div style="padding:9px 12px; font-size:11.5px; color:var(--ink-faint);">Escribe para buscar en todo el catálogo (${disponibles.length} estudios)…</div>
+        </div>`;
+      } else {
+        const TOPE_RESULTADOS = 30;
+        const todasLasCoincidencias = disponibles.filter(e=> coincideEstudio(e, q));
+        const items = todasLasCoincidencias.slice(0, TOPE_RESULTADOS);
+        const hayMas = todasLasCoincidencias.length > TOPE_RESULTADOS;
+        const duplicado = buscarEstudioDuplicado(q, CATALOGO);
+        listEl.innerHTML = `<div class="combo-list">
+          ${items.length===0 ? `<div style="padding:10px 12px; font-size:12.5px; color:var(--ink-faint);">SIN COINCIDENCIAS EN EL CATÁLOGO</div>` : items.map(e=>`<div class="combo-item" data-v="${e.nombre}">${e.nombre}</div>`).join("")}
+          ${hayMas ? `<div style="padding:7px 12px; font-size:11px; color:var(--ink-faint);">Mostrando los primeros ${TOPE_RESULTADOS} resultados — sigue escribiendo para afinar…</div>` : ""}
+          ${duplicado
+            ? `<div class="combo-create" id="nc-usar-existente" data-v="${duplicado.nombre}" style="color: var(--prioridad);">ESTE ESTUDIO YA EXISTE COMO: "${duplicado.nombre}" — usar estudio existente</div>`
+            : `<div class="combo-create" id="nc-crear-estudio">+ Crear nuevo tipo de estudio: "${up(q)}"</div>`}
+        </div>`;
+      }
+      listEl.querySelectorAll(".combo-item").forEach(it=>{
+        it.addEventListener("click", ()=>{
+          estudioSeleccionado = it.dataset.v;
+          inputEstudio.value = it.dataset.v;
+          listEl.innerHTML = "";
+        });
+      });
+      const usarExistente = document.getElementById("nc-usar-existente");
+      if(usarExistente){
+        usarExistente.addEventListener("click", async ()=>{
+          const nombre = usarExistente.dataset.v;
+          const entrada = CATALOGO.find(e=> e.nombre===nombre);
+          if(entrada && !entrada.activo){
+            entrada.activo = true;
+            try{ await guardarRegistro("catalogo_estudios", entrada); }
+            catch(err){ console.error("Error al reactivar el estudio:", err); entrada.activo = false; toast("NO SE PUDO REACTIVAR EL ESTUDIO."); return; }
+          }
+          estudioSeleccionado = nombre;
+          inputEstudio.value = nombre;
+          listEl.innerHTML = "";
+        });
+      }
+      const crear = document.getElementById("nc-crear-estudio");
+      if(crear){
+        crear.addEventListener("click", async ()=>{
+          const nombre = up(inputEstudio.value);
+          const modalidad = inferirCategoria(nombre) || "TOMOGRAFÍA";
+          const copiaCategoriasAnterior = CATEGORIAS.slice();
+          const nuevaEntrada = { id: generarIdEstudio(), nombre, modalidad, categoria:"GENERAL", activo:true, usos:0 };
+          CATALOGO.push(nuevaEntrada);
+          if(!CATEGORIAS.find(c=> c.nombre===modalidad)){ CATEGORIAS.push({ nombre:modalidad, activo:true }); }
+          try{
+            await guardarRegistro("catalogo_estudios", nuevaEntrada);
+            await guardarCategorias(CATEGORIAS);
+            estudioSeleccionado = nombre;
+            toast("TIPO DE ESTUDIO AÑADIDO AL CATÁLOGO");
+          }catch(err){
+            console.error("Error al crear el tipo de estudio:", err);
+            CATALOGO = CATALOGO.filter(e=> e.id!==nuevaEntrada.id);
+            CATEGORIAS = copiaCategoriasAnterior;
+            toast("NO SE PUDO CREAR EL ESTUDIO. INTENTA DE NUEVO.");
+          }
+          listEl.innerHTML = "";
+        });
+      }
+    }
+    inputEstudio.addEventListener("focus", pintarLista);
+    inputEstudio.addEventListener("input", ()=>{ estudioSeleccionado=""; pintarLista(); });
+
+    let areaSeleccionada = casoExistente ? casoExistente.area : "";
+    const inputArea = document.getElementById("nc-area");
+    const listElArea = document.getElementById("nc-area-list");
+    function pintarListaArea(){
+      const q = normKey(inputArea.value);
+      const items = q ? AREAS.filter(a=> normKey(a).includes(q)) : AREAS;
+      const existeExacto = AREAS.some(a=> normKey(a)===q);
+      listElArea.innerHTML = `<div class="combo-list">
+        ${items.map(a=>`<div class="combo-item" data-v="${a}">${a}</div>`).join("")}
+        ${q && !existeExacto ? `<div class="combo-create" id="nc-crear-area">+ Crear nueva área: "${up(inputArea.value)}"</div>` : ""}
+      </div>`;
+      listElArea.querySelectorAll(".combo-item").forEach(it=>{
+        it.addEventListener("click", ()=>{
+          areaSeleccionada = it.dataset.v;
+          inputArea.value = it.dataset.v;
+          listElArea.innerHTML = "";
+        });
+      });
+      const crearArea = document.getElementById("nc-crear-area");
+      if(crearArea){
+        crearArea.addEventListener("click", async ()=>{
+          const nombre = up(inputArea.value);
+          const yaExiste = AREAS.find(a=> normKey(a)===normKey(nombre));
+          if(yaExiste){ areaSeleccionada = yaExiste; inputArea.value = yaExiste; }
+          else{
+            AREAS.push(nombre);
+            await guardarAreas(AREAS);
+            areaSeleccionada = nombre;
+            toast("ÁREA AÑADIDA AL CATÁLOGO");
+          }
+          listElArea.innerHTML = "";
+        });
+      }
+    }
+    inputArea.addEventListener("focus", pintarListaArea);
+    inputArea.addEventListener("input", ()=>{ areaSeleccionada=""; pintarListaArea(); });
+
+    document.addEventListener("click", function outside(e){
+      if(!back.isConnected){ document.removeEventListener("click", outside); return; }
+      if(!e.target.closest(".combo")){ listEl.innerHTML = ""; listElArea.innerHTML = ""; }
+    });
+
+    document.getElementById("mc-guardar").addEventListener("click", async ()=>{
+      const paciente = up(document.getElementById("nc-paciente").value);
+      const hcl = up(document.getElementById("nc-hcl").value);
+      const orden = up(document.getElementById("nc-orden").value);
+      const estudio = up(estudioSeleccionado || inputEstudio.value);
+      const area = up(areaSeleccionada || inputArea.value);
+      const diagnostico = up(document.getElementById("nc-diagnostico").value);
+
+      if(!paciente || !hcl || !estudio || !area || !diagnostico){
+        toast("COMPLETA PACIENTE, HCL, ESTUDIO, ÁREA Y DIAGNÓSTICO"); return;
+      }
+
+      const btnGuardar = document.getElementById("mc-guardar");
+
+      // ---- 1) Mutaciones en memoria: instantáneas, no tocan la red ----
+      const yaEnCatalogo = buscarEstudioDuplicado(estudio, CATALOGO);
+      let entradaCatalogo = yaEnCatalogo;
+      const esEntradaCatalogoNueva = !yaEnCatalogo;
+      let categoriaNuevaRegistrada = false;
+      const copiaCategoriasAnterior = CATEGORIAS.slice();
+      if(!yaEnCatalogo){
+        const modalidadNueva = inferirCategoria(estudio) || "TOMOGRAFÍA";
+        entradaCatalogo = { id: generarIdEstudio(), nombre: estudio, modalidad: modalidadNueva, categoria:"GENERAL", activo:true, usos:0 };
+        CATALOGO.push(entradaCatalogo);
+        if(!CATEGORIAS.find(c=> c.nombre===modalidadNueva)){ CATEGORIAS.push({ nombre:modalidadNueva, activo:true }); categoriaNuevaRegistrada = true; }
+      }
+      // Copia de los campos del estudio ANTES de tocarlos, para poder deshacer si falla el guardado.
+      const estadoAnteriorEntradaCatalogo = { activo: entradaCatalogo.activo, usos: entradaCatalogo.usos };
+      if(!esEntradaCatalogoNueva && !entradaCatalogo.activo){ entradaCatalogo.activo = true; }
+      if(!casoExistente || casoExistente.estudio !== estudio){
+        entradaCatalogo.usos = (entradaCatalogo.usos||0) + 1;
+      }
+      let areaEsNueva = false;
+      const copiaAreasAnterior = AREAS.slice();
+      if(!AREAS.find(a=> normKey(a)===normKey(area))){ AREAS.push(area); areaEsNueva = true; }
+
+      let casoGuardado, esNuevo, copiaCasoExistenteAntes = null;
+      const selectPropietario = document.getElementById("nc-propietario");
+      if(casoExistente){
+        copiaCasoExistenteAntes = { ...casoExistente };
+        casoExistente.paciente = paciente;
+        casoExistente.hcl = hcl;
+        casoExistente.orden = orden;
+        casoExistente.estudio = estudio;
+        casoExistente.area = area;
+        casoExistente.diagnostico = diagnostico;
+        // Reasignar propietario: SOLO existe este control si es administrador (ver el HTML del modal).
+        if(selectPropietario && esAdministrador() && selectPropietario.value !== casoExistente.creadoPorId){
+          const nuevoPropietario = USUARIOS.find(u=> u.id===selectPropietario.value);
+          if(nuevoPropietario){
+            casoExistente.creadoPorId = nuevoPropietario.id;
+            casoExistente.aportadoPor = nuevoPropietario.nombres + " " + nuevoPropietario.apellidos;
+            casoExistente.rol = nuevoPropietario.rol;
+          }
+        }
+        casoGuardado = casoExistente;
+        esNuevo = false;
+      } else {
+        // El número de caso se pide a Firestore con una transacción atómica: si dos equipos
+        // guardan un caso nuevo al mismo tiempo, cada uno recibe un número distinto sin choques.
+        btnGuardar.disabled = true;
+        let numero;
+        try{
+          numero = await generarNumeroCasoAtomico();
+        }catch(err){
+          console.error("Error al generar el número de caso:", err);
+          btnGuardar.disabled = false;
+          toast("NO SE PUDO CONTACTAR EL SERVIDOR. INTENTA DE NUEVO.");
+          return;
+        }
+        casoGuardado = {
+          id: pad6(numero), hospital: HOSPITAL,
+          paciente, hcl, orden, estudio, area, diagnostico,
+          aportadoPor: nombreCompletoPerfil(), rol: PERFIL.rol, creadoPorId: PERFIL.id,
+          fechaIngreso: todayISO()
+        };
+        CASOS.push(casoGuardado);
+        esNuevo = true;
+      }
+
+      // ---- 2) Confirmación y actualización de pantalla INMEDIATAS, sin esperar la red ----
+      back.remove();
+      toast(esNuevo ? ("CASO #" + casoGuardado.id + " GUARDADO CORRECTAMENTE") : ("CASO #" + casoGuardado.id + " ACTUALIZADO"));
+      if(esNuevo){ TAB = "biblioteca"; }
+      renderMain();
+
+      // ---- 3) Persistencia real en Firestore, en paralelo, sin bloquear la interfaz ----
+      // Cada caso y cada estudio se guarda como SU PROPIO documento (no se reescribe la
+      // colección completa), para no pisar los cambios que otro equipo esté guardando al
+      // mismo tiempo sobre otros registros distintos.
+      (async ()=>{
+        try{
+          const escrituras = [ guardarRegistro("casos", casoGuardado), guardarRegistro("catalogo_estudios", entradaCatalogo) ];
+          if(categoriaNuevaRegistrada) escrituras.push(guardarCategorias(CATEGORIAS));
+          if(areaEsNueva) escrituras.push(guardarAreas(AREAS));
+          await Promise.all(escrituras);
+        }catch(err){
+          console.error("Error al guardar el caso en Firestore:", err);
+          if(esEntradaCatalogoNueva){ CATALOGO = CATALOGO.filter(e=> e.id!==entradaCatalogo.id); }
+          else{ Object.assign(entradaCatalogo, estadoAnteriorEntradaCatalogo); }
+          CATEGORIAS = copiaCategoriasAnterior;
+          AREAS = copiaAreasAnterior;
+          if(esNuevo){ CASOS = CASOS.filter(c=> c.id!==casoGuardado.id); }
+          else if(copiaCasoExistenteAntes){ Object.assign(casoExistente, copiaCasoExistenteAntes); }
+          toast("NO SE PUDO GUARDAR EL CASO EN EL SERVIDOR. SE DESHIZO EL CAMBIO — INTÉNTALO DE NUEVO.");
+          renderMain();
+        }
+      })();
+    });
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
