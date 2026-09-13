@@ -152,7 +152,6 @@
   tbody tr.urgente{ border-left-color: var(--urgente); }
   tbody tr.vencido{ border-left-color: var(--vencido); }
   .caseid{ font-weight:700; }
-  .paciente{ font-weight:700; }
   .aportadopor{ font-size:12.5px; color: var(--accent-dark); font-weight:700; }
   .rolechip{ font-size:10.5px; color: var(--ink-soft); font-weight:600; }
   .diag{ max-width: 230px; }
@@ -897,12 +896,13 @@
     return PERFIL.rol === "ADMINISTRADOR" || c.creadoPorId === PERFIL.id;
   }
 
-  // Editar la INFORMACIÓN de un caso (paciente, estudio, diagnóstico, etc.) está permitido
-  // a cualquier usuario registrado — es una plataforma colaborativa. Lo que nunca se permite,
-  // ni siquiera al editar, es cambiar la autoría (aportadoPor / creadoPorId): ese campo no se
-  // expone como editable en el formulario y el guardado nunca lo toca.
+  // Editar un caso YA CREADO está restringido: solo el administrador o quien lo creó puede
+  // modificarlo. Esto NO afecta la creación de casos nuevos (cualquier usuario autorizado
+  // sigue pudiendo crear casos con normalidad) — solo la edición posterior de un caso
+  // existente. La autoría (aportadoPor / creadoPorId) nunca es editable salvo por el
+  // administrador a través del selector de propietario, que también está restringido aparte.
   function puedeEditarCaso(c){
-    return !!PERFIL;
+    return !!PERFIL && (PERFIL.rol === "ADMINISTRADOR" || c.creadoPorId === PERFIL.id);
   }
 
   function casosEnriquecidos(){
@@ -974,7 +974,7 @@
       if(filtro.medico!=="TODOS" && c.aportadoPor!==filtro.medico) return false;
       if(filtro.area!=="TODOS" && c.area!==filtro.area) return false;
       if(t){
-        const hay = normKey([c.paciente,c.hcl,c.orden,c.estudio,c.area,c.diagnostico,c.aportadoPor].join(" "));
+        const hay = normKey([c.hcl,c.orden,c.estudio,c.area,c.diagnostico,c.aportadoPor].join(" "));
         if(!hay.includes(t)) return false;
       }
       return true;
@@ -994,7 +994,7 @@
         <button class="btn-primary" id="btn-nuevo">+ Agregar caso</button>
       </div>
       <div class="filterbar">
-        <input type="text" id="f-texto" placeholder="Buscar por paciente, HCL, orden, diagnóstico, estudio o médico…" value="${filtro.texto}">
+        <input type="text" id="f-texto" placeholder="Buscar por HCL, orden, diagnóstico, estudio o médico…" value="${filtro.texto}">
         <select id="f-medico">
           <option value="TODOS">Todos los médicos</option>
           ${medicos.map(([n,r])=> `<option value="${n}" ${filtro.medico===n?"selected":""}>${n} — ${r}</option>`).join("")}
@@ -1041,7 +1041,7 @@
     <div class="tablewrap">
       <table>
         <thead><tr>
-          <th>Caso</th><th>Paciente</th><th>HCL / Orden</th><th>Estudio</th><th>Área</th><th>Diagnóstico docente</th>
+          <th>Caso</th><th>HCL / Orden</th><th>Estudio</th><th>Área</th><th>Diagnóstico docente</th>
           <th>Aportado por</th><th>Fecha de ingreso</th><th>Estado de conservación</th>
           <th></th>
         </tr></thead>
@@ -1049,7 +1049,6 @@
           ${enr.map(({c,cons})=>`
             <tr class="${cons.estado}">
               <td data-label="Caso"><span class="mono caseid">#${c.id}</span></td>
-              <td data-label="Paciente"><span class="paciente">${c.paciente}</span></td>
               <td data-label="HCL / Orden"><span class="mono">${c.hcl}</span><br><span class="mono" style="color:var(--ink-soft); font-size:12px;">${c.orden}</span></td>
               <td data-label="Estudio">${c.estudio}</td>
               <td data-label="Área">${c.area || "—"}</td>
@@ -1187,7 +1186,7 @@
         <div class="chip proximo"><div class="n">${proximos}</div><div class="l">Próximos · 3–6 meses</div></div>
       </div>
       <div class="filterbar">
-        <input type="text" id="f-texto" placeholder="Buscar por paciente, HCL, orden, diagnóstico, estudio o médico…" value="${filtro.texto}">
+        <input type="text" id="f-texto" placeholder="Buscar por HCL, orden, diagnóstico, estudio o médico…" value="${filtro.texto}">
       </div>
       <div id="resultados-respaldos"></div>
     `;
@@ -1601,7 +1600,6 @@
               ${USUARIOS.filter(u=> u.activo || u.id===casoExistente.creadoPorId).map(u=> `<option value="${u.id}" ${u.id===casoExistente.creadoPorId?"selected":""}>${u.nombres} ${u.apellidos} — ${u.rol}</option>`).join("")}
             </select>
           </div>` : ""}
-          <div class="field"><label>Nombre del paciente</label><input type="text" id="nc-paciente" data-upper value="${casoExistente?casoExistente.paciente:""}" placeholder="EJ: MARÍA FERNANDA XXXXX"></div>
           <div class="row2">
             <div class="field"><label>HCL / Historia clínica</label><input type="text" id="nc-hcl" data-upper value="${casoExistente?casoExistente.hcl:""}" placeholder="EJ: 458721"></div>
             <div class="field"><label>Número de orden</label><input type="text" id="nc-orden" data-upper value="${casoExistente?casoExistente.orden:""}" placeholder="EJ: 2026-45897"></div>
@@ -1753,15 +1751,19 @@
     });
 
     document.getElementById("mc-guardar").addEventListener("click", async ()=>{
-      const paciente = up(document.getElementById("nc-paciente").value);
+      if(casoExistente && !puedeEditarCaso(casoExistente)){
+        console.error("Guardar caso: usuario sin permiso intentó editar", casoExistente.id, "usuario:", PERFIL && PERFIL.id);
+        toast("NO TIENES PERMISO PARA EDITAR ESTE CASO");
+        return;
+      }
       const hcl = up(document.getElementById("nc-hcl").value);
       const orden = up(document.getElementById("nc-orden").value);
       const estudio = up(estudioSeleccionado || inputEstudio.value);
       const area = up(areaSeleccionada || inputArea.value);
       const diagnostico = up(document.getElementById("nc-diagnostico").value);
 
-      if(!paciente || !hcl || !estudio || !area || !diagnostico){
-        toast("COMPLETA PACIENTE, HCL, ESTUDIO, ÁREA Y DIAGNÓSTICO"); return;
+      if(!hcl || !estudio || !area || !diagnostico){
+        toast("COMPLETA HCL, ESTUDIO, ÁREA Y DIAGNÓSTICO"); return;
       }
 
       const btnGuardar = document.getElementById("mc-guardar");
@@ -1792,7 +1794,7 @@
       const selectPropietario = document.getElementById("nc-propietario");
       if(casoExistente){
         copiaCasoExistenteAntes = { ...casoExistente };
-        casoExistente.paciente = paciente;
+        delete casoExistente.paciente; // purga cualquier valor heredado de antes de este cambio
         casoExistente.hcl = hcl;
         casoExistente.orden = orden;
         casoExistente.estudio = estudio;
@@ -1824,7 +1826,7 @@
         }
         casoGuardado = {
           id: pad6(numero), hospital: HOSPITAL,
-          paciente, hcl, orden, estudio, area, diagnostico,
+          hcl, orden, estudio, area, diagnostico,
           aportadoPor: nombreCompletoPerfil(), rol: PERFIL.rol, creadoPorId: PERFIL.id,
           fechaIngreso: todayISO()
         };
