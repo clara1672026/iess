@@ -3,6 +3,23 @@
 Aplicación de una sola página (`index.html`) que ahora usa **Cloud Firestore** como base
 de datos principal y compartida de verdad entre todos los equipos que abran la web.
 
+## 🔧 Corrección: usuarios que desaparecían
+
+**Causa real:** la carga inicial de datos (usuarios, catálogo, categorías, áreas) se resolvía
+con el primer aviso de `onSnapshot()`. Ese primer aviso muchas veces llega de la **caché local**
+del navegador antes de que el servidor responda. Si la caché todavía no tenía sincronizado el
+documento de usuarios (otro dispositivo, caché recién borrada, reconexión de red), la app creía
+que "no había usuarios todavía" y volvía a crear solo el administrador — **borrando a todos los
+demás**, y esa sobrescritura se sincronizaba al instante a todo el mundo conectado.
+
+**Corrección:** la carga inicial ahora usa `get({source:"server"})`, una lectura explícita que
+espera la respuesta real del servidor (con `cache` solo como respaldo si no hay red en absoluto).
+`onSnapshot()` se sigue usando, pero únicamente para recibir cambios *después* de esa primera
+lectura confiable — nunca para decidir si hay que sembrar datos. Además, `usuarios` pasó a ser
+una colección con un documento por persona (igual que `casos` y `catalogo_estudios`), en vez de
+un único documento con la lista completa, para que crear o editar a alguien nunca implique
+reescribir a todos los demás.
+
 ## ✅ Qué cambió con esta integración
 
 - **Antes**: los datos se guardaban en `localStorage` del navegador — cada persona veía
@@ -83,7 +100,8 @@ colecciones en Firestore al guardar información por primera vez:
 |-----------------------|--------------------------------------------------------------------|
 | `casos`               | Un documento por cada caso registrado                             |
 | `catalogo_estudios`   | Un documento por cada tipo de estudio del catálogo                |
-| `configuracion`       | Documentos: `usuarios`, `categorias`, `areas`, `contador_casos`   |
+| `usuarios`            | Un documento por cada persona registrada (posgradistas, tratantes, administrador) |
+| `configuracion`       | Documentos: `categorias`, `areas`, `contador_casos`               |
 
 ## Pasos para publicar en GitHub Pages
 

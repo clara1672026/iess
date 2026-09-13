@@ -303,26 +303,38 @@
     .catch(err=> console.error("No se pudo autenticar de forma anónima con Firebase:", err));
   async function esperarAutenticacion(){ try{ await listoParaFirestore; }catch(e){} }
 
-  // ---- Colecciones con UN documento por registro real (casos, catálogo de estudios) ----
-  // Cada caso y cada estudio es su propio documento. Así, si dos personas crean, editan o
-  // eliminan registros distintos al mismo tiempo, no se pisan entre sí (a diferencia de
-  // guardar todo en un solo documento gigante). onSnapshot() avisa a todos los demás
-  // equipos en tiempo real cuando algo cambia.
-  function suscribirColeccion(nombreColeccion, alActualizar){
-    return new Promise(resolve=>{
-      let primeraVez = true;
-      db.collection(nombreColeccion).onSnapshot(
-        snap=>{
-          const items = snap.docs.map(d=> d.data());
-          if(primeraVez){ primeraVez = false; resolve(items); }
-          else{ alActualizar(items); }
-        },
-        err=>{
-          console.error("Error de sincronización en tiempo real ("+nombreColeccion+"):", err);
-          if(primeraVez){ primeraVez = false; resolve([]); }
-        }
-      );
-    });
+  // ---- Colecciones con UN documento por registro real (casos, catálogo de estudios, usuarios) ----
+  // Cada caso, cada estudio y cada usuario es su propio documento. Así, si dos personas crean,
+  // editan o eliminan registros distintos al mismo tiempo, no se pisan entre sí (a diferencia de
+  // guardar todo en un solo documento gigante).
+  //
+  // IMPORTANTE — esto es justamente lo que corrige el problema de "usuarios que desaparecen":
+  // la carga INICIAL se hace con una lectura explícita (get), pidiendo primero el dato real del
+  // SERVIDOR y solo cayendo a la caché local si de verdad no hay red. Antes, la carga inicial se
+  // resolvía con el primer aviso de onSnapshot(), y ese primer aviso muchas veces viene de la
+  // caché local ANTES de que el servidor responda; si la caché todavía no tenía sincronizado el
+  // documento (otro dispositivo, caché recién borrada, reconexión de red, etc.), parecía que "no
+  // había usuarios todavía" y el código sembraba de nuevo solo el administrador, borrando a los
+  // demás — y esa sobrescritura se sincronizaba al instante a todo el mundo. Con get() esto ya
+  // no puede pasar: la app espera una respuesta real antes de decidir si algo existe o no.
+  // onSnapshot() se sigue usando, pero ÚNICAMENTE para recibir actualizaciones DESPUÉS de esa
+  // primera lectura confiable — nunca para decidir si hay que sembrar datos.
+  async function cargarColeccionInicial(nombreColeccion){
+    await esperarAutenticacion();
+    try{
+      const snap = await db.collection(nombreColeccion).get({ source: "server" });
+      return snap.docs.map(d=> d.data());
+    }catch(err){
+      console.warn("No se pudo leer '"+nombreColeccion+"' del servidor (¿sin conexión?), usando caché local:", err.code||err.message);
+      const snap = await db.collection(nombreColeccion).get({ source: "cache" });
+      return snap.docs.map(d=> d.data());
+    }
+  }
+  function suscribirColeccionCambios(nombreColeccion, alActualizar){
+    db.collection(nombreColeccion).onSnapshot(
+      snap=> alActualizar(snap.docs.map(d=> d.data())),
+      err=> console.error("Error de sincronización en tiempo real ("+nombreColeccion+"):", err)
+    );
   }
   async function guardarRegistro(nombreColeccion, registro){
     await esperarAutenticacion();
@@ -342,24 +354,25 @@
     }
   }
 
-  // ---- Documentos de configuración (usuarios, categorías, áreas): cambian poco y los
-  // administra una sola persona a la vez, así que un documento único por tipo alcanza.
-  // Sigue siendo Firestore real — no localStorage. ----
-  function suscribirDocumento(nombreColeccion, idDocumento, alActualizar){
-    return new Promise(resolve=>{
-      let primeraVez = true;
-      db.collection(nombreColeccion).doc(idDocumento).onSnapshot(
-        snap=>{
-          const datos = snap.exists ? snap.data().valor : null;
-          if(primeraVez){ primeraVez = false; resolve(datos); }
-          else if(datos !== null){ alActualizar(datos); }
-        },
-        err=>{
-          console.error("Error de sincronización en tiempo real ("+nombreColeccion+"/"+idDocumento+"):", err);
-          if(primeraVez){ primeraVez = false; resolve(null); }
-        }
-      );
-    });
+  // ---- Documentos de configuración (categorías, áreas): cambian poco y los administra una
+  // sola persona a la vez, así que un documento único por tipo alcanza. Misma corrección que
+  // arriba: lectura inicial confiable contra el servidor, separada del listener en vivo. ----
+  async function cargarDocumentoInicial(nombreColeccion, idDocumento){
+    await esperarAutenticacion();
+    try{
+      const snap = await db.collection(nombreColeccion).doc(idDocumento).get({ source: "server" });
+      return snap.exists ? snap.data().valor : null;
+    }catch(err){
+      console.warn("No se pudo leer '"+nombreColeccion+"/"+idDocumento+"' del servidor, usando caché local:", err.code||err.message);
+      const snap = await db.collection(nombreColeccion).doc(idDocumento).get({ source: "cache" });
+      return snap.exists ? snap.data().valor : null;
+    }
+  }
+  function suscribirDocumentoCambios(nombreColeccion, idDocumento, alActualizar){
+    db.collection(nombreColeccion).doc(idDocumento).onSnapshot(
+      snap=>{ if(snap.exists) alActualizar(snap.data().valor); },
+      err=> console.error("Error de sincronización en tiempo real ("+nombreColeccion+"/"+idDocumento+"):", err)
+    );
   }
   async function guardarDocumento(nombreColeccion, idDocumento, valor){
     await esperarAutenticacion();
@@ -723,10 +736,13 @@
   }
 
   async function cargarUsuarios(){
-    return suscribirDocumento("configuracion", "usuarios", (valor)=>{ USUARIOS = valor; refrescarVistaTrasSincronizacion(); });
-  }
-  async function guardarUsuarios(u){
-    await guardarDocumento("configuracion", "usuarios", u);
+    // "usuarios" es ahora una colección real (un documento por persona), separada por completo
+    // de la autenticación anónima de Firebase (esa solo identifica al navegador ante las reglas
+    // de seguridad; esta es la identidad real dentro de la app — ver comentario en la sección
+    // FIREBASE / FIRESTORE más arriba). Lectura inicial confiable + escucha en vivo aparte.
+    const items = await cargarColeccionInicial("usuarios");
+    suscribirColeccionCambios("usuarios", (nuevos)=>{ USUARIOS = nuevos; refrescarVistaTrasSincronizacion(); });
+    return items;
   }
   async function cargarSesionRecordada(){
     // Puramente local a este navegador/dispositivo: nunca debe viajar a Firestore.
@@ -740,7 +756,9 @@
     localStorage.removeItem("banco_casos_sesion_recordada");
   }
   async function cargarCatalogo(){
-    return suscribirColeccion("catalogo_estudios", (items)=>{ CATALOGO = items; refrescarVistaTrasSincronizacion(); });
+    const items = await cargarColeccionInicial("catalogo_estudios");
+    suscribirColeccionCambios("catalogo_estudios", (nuevos)=>{ CATALOGO = nuevos; refrescarVistaTrasSincronizacion(); });
+    return items;
   }
   async function guardarCatalogo(cat){
     // _clave / _tokens son cachés de búsqueda calculadas en memoria (ver claveCanonicaDeEntrada /
@@ -749,19 +767,25 @@
     await guardarRegistrosEnLote("catalogo_estudios", limpio);
   }
   async function cargarCategorias(){
-    return suscribirDocumento("configuracion", "categorias", (valor)=>{ CATEGORIAS = valor; refrescarVistaTrasSincronizacion(); });
+    const valor = await cargarDocumentoInicial("configuracion", "categorias");
+    suscribirDocumentoCambios("configuracion", "categorias", (nuevo)=>{ CATEGORIAS = nuevo; refrescarVistaTrasSincronizacion(); });
+    return valor;
   }
   async function guardarCategorias(cats){
     await guardarDocumento("configuracion", "categorias", cats);
   }
   async function cargarAreas(){
-    return suscribirDocumento("configuracion", "areas", (valor)=>{ AREAS = valor; refrescarVistaTrasSincronizacion(); });
+    const valor = await cargarDocumentoInicial("configuracion", "areas");
+    suscribirDocumentoCambios("configuracion", "areas", (nuevo)=>{ AREAS = nuevo; refrescarVistaTrasSincronizacion(); });
+    return valor;
   }
   async function guardarAreas(areas){
     await guardarDocumento("configuracion", "areas", areas);
   }
   async function cargarCasos(){
-    return suscribirColeccion("casos", (items)=>{ CASOS = items; refrescarVistaTrasSincronizacion(); });
+    const items = await cargarColeccionInicial("casos");
+    suscribirColeccionCambios("casos", (nuevos)=>{ CASOS = nuevos; refrescarVistaTrasSincronizacion(); });
+    return items;
   }
   async function guardarCasos(casos){
     // Se usa solo para siembra/migración masiva inicial. El día a día (crear/editar/eliminar
@@ -790,8 +814,12 @@
 
     let usuarios = usuariosLeidos;
     if(!usuarios || usuarios.length===0){
-      usuarios = [{ id:"admin", nombres:"ADMINISTRADOR", apellidos:"DEL SISTEMA", rol:"ADMINISTRADOR", activo:true }];
-      await guardarUsuarios(usuarios);
+      // Solo se llega aquí si la lectura confiable contra el servidor confirmó que la
+      // colección "usuarios" está realmente vacía. Se crea ÚNICAMENTE el documento del
+      // administrador — nunca se toca ni se sobrescribe nada más.
+      const admin = { id:"admin", nombres:"ADMINISTRADOR", apellidos:"DEL SISTEMA", rol:"ADMINISTRADOR", activo:true };
+      await guardarRegistro("usuarios", admin);
+      usuarios = [admin];
     }
     USUARIOS = usuarios;
 
@@ -867,9 +895,7 @@
         </div>
       </div>
       <footer style="text-align:center; padding:0 16px 24px; font-size:11px; color:var(--ink-faint); line-height:1.6;">
-        © 2026 Todos los derechos reservados.<br>
-        Donativo académico del posgradista Carlos Lara. Para aprender más y servir mejor.<br>
-        Uso interno exclusivamente académico y médico, respetando la privacidad y confidencialidad.
+        © 2026 Pg Imagen Lara
       </footer>`;
     const btn = document.getElementById("lg-ingresar");
     if(btn){
@@ -941,9 +967,7 @@
       </nav>
       <main id="main"></main>
       <footer style="text-align:center; padding:22px 16px 30px; font-size:11px; color:var(--ink-faint); line-height:1.6;">
-        © 2026 Todos los derechos reservados.<br>
-        Donativo académico del posgradista Carlos Lara. Para aprender más y servir mejor.<br>
-        Uso interno exclusivamente académico y médico, respetando la privacidad y confidencialidad.
+        © 2026 Pg Imagen Lara
       </footer>
     `;
     document.getElementById("btn-cambiar-usuario").addEventListener("click", async ()=>{
@@ -1479,6 +1503,7 @@
                 <td data-label="" style="display:flex; gap:8px; flex-wrap:wrap;">
                   <button class="btn-secondary" data-editar="${u.id}" style="padding:6px 10px; font-size:12px;">Editar</button>
                   ${u.rol!=="ADMINISTRADOR" ? `<button class="btn-danger" data-toggle="${u.id}" style="border-color:${u.activo?"var(--urgente)":"var(--seguro)"}; color:${u.activo?"var(--urgente)":"var(--seguro)"};">${u.activo?"Desactivar":"Activar"}</button>` : ""}
+                  ${u.rol!=="ADMINISTRADOR" ? `<button class="btn-danger" data-eliminar-usuario="${u.id}">Eliminar</button>` : ""}
                 </td>
               </tr>
             `).join("")}
@@ -1497,7 +1522,7 @@
         u.activo = !anterior;
         b.disabled = true;
         try{
-          await guardarUsuarios(USUARIOS);
+          await guardarRegistro("usuarios", u);
           toast(u.activo ? "USUARIO ACTIVADO" : "USUARIO DESACTIVADO");
           renderUsuarios();
         }catch(err){
@@ -1508,6 +1533,46 @@
         }
       });
     });
+    main.querySelectorAll("[data-eliminar-usuario]").forEach(b=>{
+      b.addEventListener("click", async ()=>{
+        const resultado = await eliminarUsuarioPorId(b.dataset.eliminarUsuario, confirmarAccion);
+        if(resultado.ok) renderUsuarios();
+      });
+    });
+  }
+
+  // Eliminar un usuario está restringido al Administrador — verificado aquí a nivel lógico,
+  // no solo ocultando el botón en la interfaz. Los casos que ese usuario haya creado NO se
+  // tocan: quedan como registro histórico con su autoría original intacta.
+  async function eliminarUsuarioPorId(idUsuario, confirmFn){
+    if(!esAdministrador()){
+      console.error("Eliminar usuario: usuario sin permiso de administrador intentó eliminar", idUsuario);
+      toast("SOLO EL ADMINISTRADOR PUEDE ELIMINAR USUARIOS");
+      return { ok:false, motivo:"sin_permiso" };
+    }
+    confirmFn = confirmFn || confirmarAccion;
+    const usuario = USUARIOS.find(u=> u.id===idUsuario);
+    if(!usuario){ console.error("Eliminar usuario: no se encontró", idUsuario); return { ok:false, motivo:"no_encontrado" }; }
+    if(usuario.rol==="ADMINISTRADOR"){
+      toast("NO SE PUEDE ELIMINAR AL ADMINISTRADOR DEL SISTEMA");
+      return { ok:false, motivo:"es_administrador" };
+    }
+    if(!(await confirmFn("¿ESTÁ SEGURO DE ELIMINAR ESTE USUARIO?\n\nEsta acción no se puede deshacer."))){
+      return { ok:false, motivo:"cancelado" };
+    }
+    const listaAnterior = USUARIOS;
+    const listaNueva = USUARIOS.filter(u=> u.id!==idUsuario);
+    try{
+      await eliminarRegistro("usuarios", idUsuario);
+      USUARIOS = listaNueva;
+      toast("USUARIO ELIMINADO");
+      return { ok:true };
+    }catch(err){
+      console.error("Error al eliminar el usuario:", err);
+      USUARIOS = listaAnterior;
+      toast("NO SE PUDO ELIMINAR EL USUARIO. INTENTA DE NUEVO.");
+      return { ok:false, motivo:"error_guardado", error: err };
+    }
   }
 
   function abrirModalUsuario(usuarioExistente){
@@ -1556,22 +1621,28 @@
       const nombres = up(document.getElementById("mu-nombres").value);
       const apellidos = up(document.getElementById("mu-apellidos").value);
       if(!nombres || !apellidos){ toast("COMPLETA NOMBRES Y APELLIDOS"); return; }
-      const copiaAnterior = USUARIOS.slice();
+      let usuarioAGuardar, esNuevo, estadoAnterior = null;
       if(usuarioExistente){
+        estadoAnterior = { ...usuarioExistente };
         usuarioExistente.nombres = nombres;
         usuarioExistente.apellidos = apellidos;
         if(!esAdmin) usuarioExistente.rol = rol;
+        usuarioAGuardar = usuarioExistente;
+        esNuevo = false;
       } else {
-        USUARIOS.push({ id: generarIdUsuario(), nombres, apellidos, rol, activo:true });
+        usuarioAGuardar = { id: generarIdUsuario(), nombres, apellidos, rol, activo:true };
+        USUARIOS.push(usuarioAGuardar);
+        esNuevo = true;
       }
       try{
-        await guardarUsuarios(USUARIOS);
+        await guardarRegistro("usuarios", usuarioAGuardar);
         back.remove();
         toast(usuarioExistente ? "USUARIO ACTUALIZADO" : "USUARIO AGREGADO");
         renderUsuarios();
       }catch(err){
         console.error("Error al guardar el usuario:", err);
-        USUARIOS = copiaAnterior;
+        if(esNuevo){ USUARIOS = USUARIOS.filter(u=> u.id!==usuarioAGuardar.id); }
+        else{ Object.assign(usuarioExistente, estadoAnterior); }
         toast("NO SE PUDO GUARDAR EL USUARIO. INTENTA DE NUEVO.");
       }
     });
