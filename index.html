@@ -576,6 +576,73 @@
     if(!clave) return null;
     return lista.find(e=> claveCanonicaDeEntrada(e) === clave) || null;
   }
+
+  // Corrige duplicados YA EXISTENTES en el catálogo (por ejemplo, "UROTAC SIMPLE" repetido
+  // varias veces con distinto id). Agrupa por clave canónica; de cada grupo conserva un solo
+  // registro (el de más uso real, para no perder historial), normaliza su nombre a MAYÚSCULAS,
+  // suma los usos de todos los duplicados, reasigna los casos que apuntaban a cualquiera de los
+  // nombres del grupo hacia el nombre normalizado, y solo entonces elimina los sobrantes.
+  // Es segura de ejecutar en cada carga: si el catálogo ya está limpio, no escribe nada.
+  async function limpiarDuplicadosCatalogo(){
+    const grupos = new Map();
+    CATALOGO.forEach(e=>{
+      const clave = claveCanonicaEstudio(e.nombre);
+      if(!clave) return;
+      if(!grupos.has(clave)) grupos.set(clave, []);
+      grupos.get(clave).push(e);
+    });
+
+    const entradasAActualizar = [];
+    const idsAEliminar = [];
+    const casosAActualizar = [];
+
+    grupos.forEach(grupo=>{
+      const nombreNormalizado = up(grupo[0].nombre);
+      if(grupo.length === 1){
+        if(grupo[0].nombre !== nombreNormalizado){
+          grupo[0].nombre = nombreNormalizado;
+          invalidarCacheEstudio(grupo[0]);
+          entradasAActualizar.push(grupo[0]);
+        }
+        return;
+      }
+      // Hay más de un registro para el mismo estudio real: se conserva el de más uso.
+      grupo.sort((a,b)=> (b.usos||0) - (a.usos||0));
+      const principal = grupo[0];
+      const sobrantes = grupo.slice(1);
+      const usosTotal = grupo.reduce((suma,e)=> suma + (e.usos||0), 0);
+
+      principal.nombre = nombreNormalizado;
+      principal.usos = usosTotal;
+      invalidarCacheEstudio(principal);
+      entradasAActualizar.push(principal);
+
+      const nombresDelGrupo = new Set(grupo.map(e=> e.nombre));
+      CASOS.forEach(c=>{
+        if(nombresDelGrupo.has(c.estudio) && c.estudio !== nombreNormalizado){
+          c.estudio = nombreNormalizado;
+          casosAActualizar.push(c);
+        }
+      });
+      sobrantes.forEach(e=> idsAEliminar.push(e.id));
+    });
+
+    if(entradasAActualizar.length===0 && idsAEliminar.length===0 && casosAActualizar.length===0) return;
+
+    try{
+      if(entradasAActualizar.length) await guardarRegistrosEnLote("catalogo_estudios", entradasAActualizar);
+      if(casosAActualizar.length) await guardarRegistrosEnLote("casos", casosAActualizar);
+      for(const id of idsAEliminar){ await eliminarRegistro("catalogo_estudios", id); }
+      if(idsAEliminar.length){
+        const idsSet = new Set(idsAEliminar);
+        CATALOGO = CATALOGO.filter(e=> !idsSet.has(e.id));
+      }
+      console.warn("Catálogo de estudios: se corrigieron duplicados —", idsAEliminar.length, "registro(s) sobrante(s) eliminado(s),", entradasAActualizar.length, "normalizado(s) a MAYÚSCULAS.");
+    }catch(err){
+      console.error("Error al limpiar duplicados del catálogo (se reintentará en la próxima carga):", err);
+    }
+  }
+
   function coincideEstudio(entry, consulta){
     const qTokens = tokensEstudio(consulta);
     if(qTokens.length===0) return true;
@@ -801,6 +868,11 @@
 
   function generarIdUsuario(){ return "u_" + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
   function generarIdEstudio(){ return "e_" + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+  // Para datos de siembra (catálogo inicial): un id FIJO y determinista a partir del nombre
+  // normalizado, no aleatorio. Así, si dos equipos abren la app a la vez con el catálogo vacío
+  // y ambos intentan sembrarlo, escriben en el MISMO documento (el segundo simplemente
+  // sobrescribe con el mismo contenido) en vez de crear dos registros duplicados.
+  function idSemillaEstudio(nombre){ return "seed_" + normKey(nombre).replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, ""); }
 
   async function init(){
     const app = document.getElementById("app");
@@ -826,7 +898,7 @@
     let cat = catLeido;
     if(!cat || cat.length===0){
       cat = [];
-      CATALOGO_INICIAL.forEach(([nombre, modalidad, categoria])=> cat.push({ id: generarIdEstudio(), nombre, modalidad, categoria: categoria||"GENERAL", activo:true, usos:0 }));
+      CATALOGO_INICIAL.forEach(([nombre, modalidad, categoria])=> cat.push({ id: idSemillaEstudio(nombre), nombre, modalidad, categoria: categoria||"GENERAL", activo:true, usos:0 }));
       await guardarCatalogo(cat);
     } else {
       let migrado = false;
@@ -861,6 +933,10 @@
     if(!areasLeidas) await guardarAreas(AREAS);
     CASOS = casosLeidos || [];
     CONTADOR = contadorLeido || 0;
+
+    // Corrige de una vez cualquier duplicado que ya exista en el catálogo (ver
+    // limpiarDuplicadosCatalogo). Segura de ejecutar siempre: si ya está limpio, no hace nada.
+    await limpiarDuplicadosCatalogo();
 
     const recordadoId = await cargarSesionRecordada();
     const usuarioRecordado = recordadoId ? USUARIOS.find(u=> u.id===recordadoId && u.activo) : null;
@@ -1386,10 +1462,22 @@
         if(otro && !buscarEstudioDuplicado(otro, CATALOGO)){
           seleccionados.push({ nombre: otro, categoria: "GENERAL" });
         }
-        if(seleccionados.length===0){ back.remove(); return; }
+        // Revalidación final justo antes de escribir: descarta cualquier seleccionado que, en
+        // el momento del clic, ya exista (por ejemplo, si otro equipo lo agregó mientras este
+        // asistente estaba abierto). Evita crear duplicados por una condición de carrera.
+        const yaEnCatalogoAlGuardar = new Set();
+        const seleccionadosSinDuplicar = seleccionados.filter(s=>{
+          const dup = buscarEstudioDuplicado(s.nombre, CATALOGO);
+          if(dup) return false;
+          const clave = claveCanonicaEstudio(s.nombre);
+          if(yaEnCatalogoAlGuardar.has(clave)) return false; // tampoco duplicar entre sí en la misma tanda
+          yaEnCatalogoAlGuardar.add(clave);
+          return true;
+        });
+        if(seleccionadosSinDuplicar.length===0){ back.remove(); return; }
 
         const copiaCatalogoAnterior = CATALOGO.slice();
-        const nuevasEntradas = seleccionados.map(s=> ({ id: generarIdEstudio(), nombre: s.nombre, modalidad, categoria: s.categoria, activo:true, usos:0 }));
+        const nuevasEntradas = seleccionadosSinDuplicar.map(s=> ({ id: generarIdEstudio(), nombre: s.nombre, modalidad, categoria: s.categoria, activo:true, usos:0 }));
         nuevasEntradas.forEach(e=> CATALOGO.push(e));
         try{
           await guardarRegistrosEnLote("catalogo_estudios", nuevasEntradas);
@@ -1756,6 +1844,21 @@
       if(crear){
         crear.addEventListener("click", async ()=>{
           const nombre = up(inputEstudio.value);
+          // Revalidación final justo antes de crear: si en el momento del clic ya existe
+          // (por ejemplo, otro equipo lo creó mientras esta lista estaba abierta), se usa
+          // el existente en vez de crear un duplicado.
+          const duplicadoAlGuardar = buscarEstudioDuplicado(nombre, CATALOGO);
+          if(duplicadoAlGuardar){
+            if(!duplicadoAlGuardar.activo){
+              duplicadoAlGuardar.activo = true;
+              try{ await guardarRegistro("catalogo_estudios", duplicadoAlGuardar); }
+              catch(err){ console.error("Error al reactivar el estudio:", err); duplicadoAlGuardar.activo=false; }
+            }
+            estudioSeleccionado = duplicadoAlGuardar.nombre;
+            inputEstudio.value = duplicadoAlGuardar.nombre;
+            listEl.innerHTML = "";
+            return;
+          }
           const modalidad = inferirCategoria(nombre) || "TOMOGRAFÍA";
           const copiaCategoriasAnterior = CATEGORIAS.slice();
           const nuevaEntrada = { id: generarIdEstudio(), nombre, modalidad, categoria:"GENERAL", activo:true, usos:0 };

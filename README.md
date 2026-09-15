@@ -20,6 +20,40 @@ una colección con un documento por persona (igual que `casos` y `catalogo_estud
 un único documento con la lista completa, para que crear o editar a alguien nunca implique
 reescribir a todos los demás.
 
+## 🔧 Corrección: tipos de estudio duplicados (ej. "UROTAC SIMPLE" repetido)
+
+**Causa real:** existían dos huecos. (1) Antes de la corrección anterior, la carga inicial del
+catálogo podía interpretar una caché local desactualizada como "catálogo vacío" y volver a
+sembrarlo — cada siembra usaba ids aleatorios, así que sembrar dos veces creaba copias
+duplicadas del mismo estudio con distinto id. (2) Dos botones de "crear estudio" (el del
+formulario de casos y el asistente de agregar estudios) decidían si un estudio ya existía
+únicamente al **dibujar** la lista, sin volver a comprobarlo en el momento exacto de guardar —
+si alguien más creaba ese mismo estudio mientras la lista seguía abierta, se podía crear un
+duplicado.
+
+**Corrección aplicada:**
+- **Limpieza automática** (`limpiarDuplicadosCatalogo()`, se ejecuta en cada carga de la app):
+  agrupa los estudios por nombre normalizado, conserva un solo registro por estudio real (el
+  de más uso, para no perder historial), suma el uso de todos los duplicados en ese registro,
+  **re-vincula automáticamente los casos** que usaban cualquiera de las variantes duplicadas
+  hacia el nombre ya normalizado, y solo entonces elimina los documentos sobrantes de
+  Firestore. Es segura de ejecutar siempre: si el catálogo ya está limpio, no escribe nada.
+- **Normalización estricta al guardar**: todo nombre de estudio se convierte a MAYÚSCULAS,
+  sin espacios dobles ni espacios al inicio/final, antes de compararlo o guardarlo — así
+  `"Urotac simple"`, `"UROTAC SIMPLE"`, `" UROTAC SIMPLE "` y `"UROTAC  SIMPLE"` se reconocen
+  siempre como el mismo estudio único: `UROTAC SIMPLE`.
+- **Revalidación en el momento exacto de guardar** (no solo al mostrar la lista) en los dos
+  puntos donde se crean estudios nuevos, cerrando la ventana de tiempo en la que dos personas
+  podían crear el mismo estudio a la vez.
+- **Siembra inicial con ids deterministas**: si el catálogo está realmente vacío y dos equipos
+  abren la app al mismo tiempo, ambos escriben en los mismos documentos (en vez de ids al azar
+  que crearían duplicados).
+- **Una sola colección, una sola interfaz**: Administrador, Posgradista y Tratante siempre
+  leyeron y siguen leyendo del mismo `catalogo_estudios` en Firestore, a través del mismo
+  componente de pantalla — la interfaz de referencia es la del Posgradista; lo único que
+  cambia según el rol son los botones de crear/editar/eliminar que se muestran, nunca la
+  lista en sí ni la fuente de datos.
+
 ## ✅ Qué cambió con esta integración
 
 - **Antes**: los datos se guardaban en `localStorage` del navegador — cada persona veía
