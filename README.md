@@ -3,6 +3,44 @@
 Aplicación de una sola página (`index.html`) que ahora usa **Cloud Firestore** como base
 de datos principal y compartida de verdad entre todos los equipos que abran la web.
 
+## 🔧 Corrección: protección de estudios en uso, usuarios eliminados y pie de página
+
+**Interfaz de Tratante confirmada de nuevo:** se volvió a verificar (comparando el HTML real
+generado, carácter por carácter) que Tratante usa exactamente la misma pantalla de catálogo
+que Posgradista y Administrador. La única diferencia sigue siendo la presencia de los botones
+de gestión, nunca el diseño.
+
+**Un tipo de estudio ya utilizado no puede eliminarse.** Antes de borrar un estudio del
+catálogo, la app comprueba si existe algún caso guardado con ese estudio. Si lo hay, el botón
+Eliminar ni siquiera aparece junto a ese estudio (se ve la etiqueta "En uso" en su lugar), y si
+de todos modos se intentara forzar la acción, la función de eliminación la rechaza y muestra:
+*"Este tipo de estudio no puede eliminarse porque ya está siendo utilizado en casos
+registrados."* — el estudio y los casos que lo usan quedan intactos. Solo puede eliminarse un
+estudio que nunca se haya usado en ningún caso.
+
+**Eliminar un usuario nunca elimina sus casos.** La eliminación de una cuenta solo borra el
+documento de esa cuenta en la colección `usuarios` — nunca toca la colección `casos`. Cada
+caso guarda el nombre de quien lo aportó (`aportadoPor`) como un dato propio del caso, no como
+una referencia en vivo a la cuenta del usuario; por eso, aunque se elimine la cuenta, el
+nombre histórico del propietario sigue mostrándose con total normalidad. Si la cuenta ya no
+existe, la app agrega junto al nombre la anotación **"(USUARIO ELIMINADO)"**, sin borrar ni
+alterar el nombre original. El Administrador conserva la posibilidad de reasignar
+posteriormente el propietario de un caso a otra cuenta activa, desde el formulario de edición
+del caso.
+
+**Corrección de duplicados existentes sin perder casos.** El proceso que limpia estudios
+duplicados (ver sección de abajo) primero revisa qué casos usan cada nombre duplicado y los
+reasigna al registro principal normalizado — solo después de eso elimina los documentos
+sobrantes del catálogo. Ningún caso puede quedar sin tipo de estudio ni con una referencia
+rota como resultado de esta limpieza.
+
+**Pie de página actualizado.** El texto ahora es exactamente:
+
+> © 2026 Pg Imagen Lara PUCE. Todos los derechos reservados. Uso exclusivamente académico
+> para Team Imagen IESS San Francisco.
+
+Visible de forma consistente tanto en la pantalla de ingreso como en la aplicación principal.
+
 ## 🔧 Corrección: usuarios que desaparecían
 
 **Causa real:** la carga inicial de datos (usuarios, catálogo, categorías, áreas) se resolvía
@@ -19,6 +57,29 @@ lectura confiable — nunca para decidir si hay que sembrar datos. Además, `usu
 una colección con un documento por persona (igual que `casos` y `catalogo_estudios`), en vez de
 un único documento con la lista completa, para que crear o editar a alguien nunca implique
 reescribir a todos los demás.
+
+## 🔧 Corrección: Tratante tenía una interfaz distinta a Posgradista en el catálogo
+
+**Causa real:** aunque el catálogo de estudios ya usaba una sola función de pantalla y una sola
+colección de Firestore para todos los roles, esa función dibujaba internamente **dos diseños
+distintos** según el permiso: quien podía gestionar el catálogo (Administrador y Posgradista)
+veía una lista en filas con botones de Editar/Eliminar; quien no podía gestionarlo (Médico
+Tratante) veía en cambio una nube de "chips" redondeados de solo lectura — un diseño
+completamente diferente, no solo sin botones.
+
+**Corrección aplicada:**
+- Se eliminó por completo el diseño alternativo de "chips". Ahora existe un único diseño en
+  filas (el que ya usaba Posgradista) y **todos los roles lo usan exactamente igual**.
+- **Tratante reutiliza exactamente la misma interfaz, estructura HTML y estilos que
+  Posgradista.** La única diferencia que queda entre ambos es la presencia de los botones
+  "+ Agregar estudio", "Editar" y "Eliminar" — que dependen únicamente del permiso
+  (`puedeGestionarCatalogo()`), nunca del diseño.
+- Verifiqué esto generando el HTML real de la pantalla para Posgradista y para Tratante y
+  comparándolo carácter por carácter (quitando solo los controles de gestión): son idénticos.
+- Ambos perfiles siguen leyendo de la misma y única colección `catalogo_estudios` en
+  Firestore — no existen catálogos ni consultas separadas por rol.
+- Se reconfirmó la prevención de duplicados y la normalización a MAYÚSCULAS (ver sección
+  siguiente) sobre este mismo catálogo unificado.
 
 ## 🔧 Corrección: tipos de estudio duplicados (ej. "UROTAC SIMPLE" repetido)
 

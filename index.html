@@ -971,7 +971,7 @@
         </div>
       </div>
       <footer style="text-align:center; padding:0 16px 24px; font-size:11px; color:var(--ink-faint); line-height:1.6;">
-        © 2026 Pg Imagen Lara
+        © 2026 Pg Imagen Lara PUCE. Todos los derechos reservados. Uso exclusivamente académico para Team Imagen IESS San Francisco.
       </footer>`;
     const btn = document.getElementById("lg-ingresar");
     if(btn){
@@ -1043,7 +1043,7 @@
       </nav>
       <main id="main"></main>
       <footer style="text-align:center; padding:22px 16px 30px; font-size:11px; color:var(--ink-faint); line-height:1.6;">
-        © 2026 Pg Imagen Lara
+        © 2026 Pg Imagen Lara PUCE. Todos los derechos reservados. Uso exclusivamente académico para Team Imagen IESS San Francisco.
       </footer>
     `;
     document.getElementById("btn-cambiar-usuario").addEventListener("click", async ()=>{
@@ -1154,7 +1154,7 @@
               <td data-label="Área">${c.area || "—"}</td>
               <td data-label="Diagnóstico docente" class="diag">${c.diagnostico}</td>
               <td data-label="Aportado por">
-                <div class="aportadopor">${c.aportadoPor}</div>
+                <div class="aportadopor">${c.aportadoPor}${USUARIOS.some(u=>u.id===c.creadoPorId) ? "" : ` <span style="color:var(--ink-faint); font-weight:600;">(USUARIO ELIMINADO)</span>`}</div>
                 <div class="rolechip">${c.rol}</div>
               </td>
               <td data-label="Fecha de ingreso" class="mono">${fmtDate(c.fechaIngreso)}</td>
@@ -1197,6 +1197,7 @@
     if(!estudio){ console.error("Eliminar estudio: no se encontró", idEstudio); return { ok:false, motivo:"no_encontrado" }; }
     if(estudioEnUso(estudio.nombre)){
       console.error("Eliminar estudio: bloqueado, ya está en uso", idEstudio);
+      toast("ESTE TIPO DE ESTUDIO NO PUEDE ELIMINARSE PORQUE YA ESTÁ SIENDO UTILIZADO EN CASOS REGISTRADOS.");
       return { ok:false, motivo:"en_uso" };
     }
     if(!(await confirmFn("¿DESEA ELIMINAR ESTE TIPO DE ESTUDIO DEL CATÁLOGO?"))){
@@ -1314,24 +1315,23 @@
 
     function filaEstudio(e){
       const enUso = estudiosEnUso.has(e.nombre);
-      if(!esAdmin){
-        return `<span style="background:var(--bg); border:1px solid var(--border); border-radius:20px; padding:5px 12px; font-size:12.5px;">${e.nombre}</span>`;
-      }
+      // MISMA estructura para todos los perfiles siempre (lista en filas). Lo único que cambia
+      // según el permiso es si aparecen o no los botones de gestión — nunca el diseño en sí.
       return `
         <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 2px; border-bottom:1px solid var(--border);">
           <div style="font-size:13.5px;">${e.nombre}</div>
-          <div style="display:flex; align-items:center; gap:4px;">
-            ${enUso ? `<span style="font-size:11px; color:var(--ink-faint); margin-right:4px;">En uso</span>` : ""}
-            <button class="btn-secondary" data-editar-estudio="${e.id}" style="padding:4px 10px; font-size:11.5px;">Editar</button>
-            ${enUso ? "" : `<button data-eliminar-estudio="${e.id}" title="Eliminar estudio" style="background:none;border:none;color:var(--urgente);font-size:18px;font-weight:800;cursor:pointer;line-height:1;padding:2px 8px;">&times;</button>`}
-          </div>
+          ${esAdmin ? `
+            <div style="display:flex; align-items:center; gap:4px;">
+              ${enUso ? `<span style="font-size:11px; color:var(--ink-faint); margin-right:4px;">En uso</span>` : ""}
+              <button class="btn-secondary" data-editar-estudio="${e.id}" style="padding:4px 10px; font-size:11.5px;">Editar</button>
+              ${enUso ? "" : `<button data-eliminar-estudio="${e.id}" title="Eliminar estudio" style="background:none;border:none;color:var(--urgente);font-size:18px;font-weight:800;cursor:pointer;line-height:1;padding:2px 8px;">&times;</button>`}
+            </div>` : ""}
         </div>`;
     }
 
     function seccionModalidad(titulo, modalidad){
       const items = CATALOGO.filter(e=> e.modalidad===modalidad && e.activo);
-      if(items.length===0 && !esAdmin) return "";
-      // Dentro de TOMOGRAFÍA, agrupar visualmente por categoría (región del cuerpo).
+      // Misma condición para todos los perfiles: nunca depende del rol si la sección se muestra.
       const subgrupos = [];
       const vistos = new Set();
       items.forEach(e=>{ if(!vistos.has(e.categoria)){ vistos.add(e.categoria); subgrupos.push(e.categoria); } });
@@ -1348,9 +1348,7 @@
                     <div style="font-size:11px; font-weight:700; color:var(--ink-faint); text-transform:uppercase; letter-spacing:0.02em; margin:8px 0 2px;">${cat}</div>
                     <div>${items.filter(e=>e.categoria===cat).map(filaEstudio).join("")}</div>
                   </div>`).join("")
-              : esAdmin
-                ? `<div>${items.map(filaEstudio).join("")}</div>`
-                : `<div style="display:flex; flex-wrap:wrap; gap:8px;">${items.map(filaEstudio).join("")}</div>`}
+              : `<div>${items.map(filaEstudio).join("")}</div>`}
         </div>`;
     }
 
