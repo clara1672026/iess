@@ -152,6 +152,12 @@
   tbody tr.urgente{ border-left-color: var(--urgente); }
   tbody tr.vencido{ border-left-color: var(--vencido); }
   .caseid{ font-weight:700; }
+  tbody tr.reciente{ background: var(--accent-tint); }
+  .badge-nuevo{
+    display:inline-block; margin-left:7px; background: var(--accent); color:#fff;
+    font-size:9.5px; font-weight:800; letter-spacing:0.03em; padding:1.5px 6px; border-radius:8px;
+    vertical-align:middle;
+  }
   .aportadopor{ font-size:12.5px; color: var(--accent-dark); font-weight:700; }
   .rolechip{ font-size:10.5px; color: var(--ink-soft); font-weight:600; }
   .diag{ max-width: 230px; }
@@ -676,12 +682,28 @@
     return resultado;
   }
   function pad6(n){ return String(n).padStart(6,"0"); }
+  // CORRECCIÓN DE FECHA: un campo "YYYY-MM-DD" es SOLO fecha, sin hora ni zona horaria.
+  // `new Date("YYYY-MM-DD")` lo interpreta como medianoche UTC; al leer luego con getDate()/
+  // getMonth()/getFullYear() (que son en hora LOCAL) el día retrocede uno en cualquier zona con
+  // offset negativo (p. ej. Ecuador, UTC-5). parseISO() construye la fecha directamente en
+  // hora LOCAL, sin pasar nunca por UTC, y es la única forma correcta de leer estos campos.
+  function parseISO(iso){
+    if(!iso) return new Date(NaN);
+    const partes = String(iso).split("-");
+    const y = Number(partes[0]), m = Number(partes[1]), d = Number(partes[2]);
+    return new Date(y, (m||1)-1, d||1);
+  }
   function fmtDate(d){
-    const dt = new Date(d);
-    return String(dt.getDate()).padStart(2,"0")+"/"+String(dt.getMonth()+1).padStart(2,"0")+"/"+dt.getFullYear();
+    if(!d) return "—";
+    // Formateo directo por texto: evita por completo crear un objeto Date para mostrar el
+    // valor, que es la forma más segura de no introducir ningún desfase de zona horaria.
+    const partes = String(d).split("-");
+    if(partes.length!==3) return String(d);
+    const [y,m,day] = partes;
+    return day.padStart(2,"0")+"/"+m.padStart(2,"0")+"/"+y;
   }
   function todayISO(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
-  function addYears(iso, years){ const d = new Date(iso); d.setFullYear(d.getFullYear()+years); return d; }
+  function addYears(iso, years){ const d = parseISO(iso); d.setFullYear(d.getFullYear()+years); return d; }
 
   function diffYMD(from, to){
     // devuelve diferencia calendario positiva entre from y to (to >= from)
@@ -990,7 +1012,7 @@
 
   /* ============================= APP PRINCIPAL ============================= */
   let TAB = "biblioteca";
-  let filtro = { texto:"", medico:"TODOS", estado:"TODOS", area:"TODOS" };
+  let filtro = { texto:"", medico:"TODOS", estado:"TODOS", area:"TODOS", desde:"", hasta:"" };
 
   function nombreCompletoPerfil(){ return PERFIL.nombres + " " + PERFIL.apellidos; }
 
@@ -1009,6 +1031,15 @@
 
   function casosEnriquecidos(){
     return CASOS.map(c => ({ c, cons: estadoConservacion(c.fechaIngreso) }));
+  }
+
+  // Un caso se considera RECIENTE si su fecha de ingreso es de hoy o de ayer (en fecha LOCAL).
+  // Distintivo discreto, no afecta el orden ni ningún otro cálculo.
+  function esCasoReciente(fechaIngresoISO){
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    const d = parseISO(fechaIngresoISO); d.setHours(0,0,0,0);
+    const diffDias = Math.round((hoy - d) / 86400000);
+    return diffDias >= 0 && diffDias <= 1;
   }
 
   function medicosUnicos(){
@@ -1073,6 +1104,11 @@
     return lista.filter(({c})=>{
       if(filtro.medico!=="TODOS" && c.aportadoPor!==filtro.medico) return false;
       if(filtro.area!=="TODOS" && c.area!==filtro.area) return false;
+      // Comparación directa de texto "YYYY-MM-DD": al ser formato ISO, el orden alfabético
+      // coincide exactamente con el orden cronológico, sin necesidad de crear objetos Date
+      // (y por lo tanto sin ningún riesgo de desfase de zona horaria).
+      if(filtro.desde && c.fechaIngreso < filtro.desde) return false;
+      if(filtro.hasta && c.fechaIngreso > filtro.hasta) return false;
       if(t){
         const hay = normKey([c.hcl,c.orden,c.estudio,c.area,c.diagnostico,c.aportadoPor].join(" "));
         if(!hay.includes(t)) return false;
@@ -1107,6 +1143,13 @@
           <option value="TODOS">Todas las áreas</option>
           ${AREAS.map(a=> `<option value="${a}" ${filtro.area===a?"selected":""}>${a}</option>`).join("")}
         </select>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <label style="font-size:11.5px; color:var(--ink-soft); font-weight:600;">Desde</label>
+          <input type="date" id="f-desde" value="${filtro.desde}">
+          <label style="font-size:11.5px; color:var(--ink-soft); font-weight:600;">Hasta</label>
+          <input type="date" id="f-hasta" value="${filtro.hasta}">
+          ${(filtro.desde || filtro.hasta) ? `<button type="button" class="btn-secondary" id="f-limpiar-fecha" style="padding:8px 10px; font-size:12px;">Limpiar fecha</button>` : ""}
+        </div>
       </div>
       <div id="resultados-biblioteca"></div>
     `;
@@ -1117,6 +1160,10 @@
     document.getElementById("f-medico").addEventListener("change", e=>{ filtro.medico=e.target.value; actualizarResultadosBiblioteca(); });
     document.getElementById("f-estado").addEventListener("change", e=>{ filtro.estado=e.target.value; actualizarResultadosBiblioteca(); });
     document.getElementById("f-area").addEventListener("change", e=>{ filtro.area=e.target.value; actualizarResultadosBiblioteca(); });
+    document.getElementById("f-desde").addEventListener("change", e=>{ filtro.desde=e.target.value; renderBiblioteca(); });
+    document.getElementById("f-hasta").addEventListener("change", e=>{ filtro.hasta=e.target.value; renderBiblioteca(); });
+    const btnLimpiarFecha = document.getElementById("f-limpiar-fecha");
+    if(btnLimpiarFecha) btnLimpiarFecha.addEventListener("click", ()=>{ filtro.desde=""; filtro.hasta=""; renderBiblioteca(); });
 
     actualizarResultadosBiblioteca();
   }
@@ -1129,7 +1176,7 @@
     let enr = casosEnriquecidos();
     if(filtro.estado!=="TODOS") enr = enr.filter(x=> x.cons.estado===filtro.estado);
     enr = filtrarCasos(enr);
-    enr.sort((a,b)=> new Date(b.c.fechaIngreso) - new Date(a.c.fechaIngreso));
+    enr.sort((a,b)=> parseISO(b.c.fechaIngreso) - parseISO(a.c.fechaIngreso));
     contenedor.innerHTML = enr.length===0
       ? `<div class="empty"><h3>No hay casos que coincidan</h3><p>Ajusta la búsqueda o agrega el primer caso docente.</p></div>`
       : tablaCasos(enr);
@@ -1147,8 +1194,8 @@
         </tr></thead>
         <tbody>
           ${enr.map(({c,cons})=>`
-            <tr class="${cons.estado}">
-              <td data-label="Caso"><span class="mono caseid">#${c.id}</span></td>
+            <tr class="${cons.estado} ${esCasoReciente(c.fechaIngreso) ? "reciente" : ""}">
+              <td data-label="Caso"><span class="mono caseid">#${c.id}</span>${esCasoReciente(c.fechaIngreso) ? '<span class="badge-nuevo">NUEVO</span>' : ""}</td>
               <td data-label="HCL / Orden"><span class="mono">${c.hcl}</span><br><span class="mono" style="color:var(--ink-soft); font-size:12px;">${c.orden}</span></td>
               <td data-label="Estudio">${c.estudio}</td>
               <td data-label="Área">${c.area || "—"}</td>
@@ -1181,11 +1228,11 @@
   }
 
   function esAdministrador(){ return !!PERFIL && PERFIL.rol === "ADMINISTRADOR"; }
-  // Gestionar el catálogo (crear/editar/eliminar estudios) está permitido a ADMINISTRADOR y
-  // POSGRADISTA — misma interfaz, mismos permisos, sin distinción. El resto de acciones
-  // exclusivamente administrativas (usuarios, cambiar el propietario de un caso) siguen
-  // usando esAdministrador() y no esto.
-  function puedeGestionarCatalogo(){ return !!PERFIL && (PERFIL.rol === "ADMINISTRADOR" || PERFIL.rol === "POSGRADISTA"); }
+  // Gestionar el catálogo (crear/editar/eliminar estudios) está permitido a ADMINISTRADOR,
+  // POSGRADISTA y MÉDICO TRATANTE — misma interfaz, mismos permisos, sin distinción. El resto
+  // de acciones exclusivamente administrativas (usuarios, cambiar el propietario de un caso)
+  // siguen usando esAdministrador() y no esto.
+  function puedeGestionarCatalogo(){ return !!PERFIL && (PERFIL.rol === "ADMINISTRADOR" || PERFIL.rol === "POSGRADISTA" || PERFIL.rol === "MÉDICO TRATANTE"); }
 
   async function eliminarEstudioPorId(idEstudio, confirmFn){
     if(!puedeGestionarCatalogo()){
@@ -1457,8 +1504,14 @@
       document.getElementById("ae-guardar").addEventListener("click", async ()=>{
         const seleccionados = Array.from(body.querySelectorAll(".ae-check:checked")).map(chk=> ({ nombre: chk.value, categoria: chk.dataset.categoria }));
         const otro = up(document.getElementById("ae-otro").value);
-        if(otro && !buscarEstudioDuplicado(otro, CATALOGO)){
-          seleccionados.push({ nombre: otro, categoria: "GENERAL" });
+        let otroEraDuplicado = false;
+        if(otro){
+          if(buscarEstudioDuplicado(otro, CATALOGO)){
+            otroEraDuplicado = true;
+            toast("ESTE TIPO DE ESTUDIO YA EXISTE EN EL CATÁLOGO.");
+          } else {
+            seleccionados.push({ nombre: otro, categoria: "GENERAL" });
+          }
         }
         // Revalidación final justo antes de escribir: descarta cualquier seleccionado que, en
         // el momento del clic, ya exista (por ejemplo, si otro equipo lo agregó mientras este
@@ -1472,7 +1525,10 @@
           yaEnCatalogoAlGuardar.add(clave);
           return true;
         });
-        if(seleccionadosSinDuplicar.length===0){ back.remove(); return; }
+        if(seleccionadosSinDuplicar.length===0){
+          if(!otroEraDuplicado) back.remove();
+          return;
+        }
 
         const copiaCatalogoAnterior = CATALOGO.slice();
         const nuevasEntradas = seleccionadosSinDuplicar.map(s=> ({ id: generarIdEstudio(), nombre: s.nombre, modalidad, categoria: s.categoria, activo:true, usos:0 }));
@@ -1746,7 +1802,11 @@
         </div>
         <div class="modal-body">
           <div class="readonly-row">
-            <div class="ro"><b>Fecha de ingreso</b>${fmtDate(casoExistente ? casoExistente.fechaIngreso : todayISO())}</div>
+            <div class="ro">
+              <b>Fecha de ingreso</b>
+              <input type="date" id="nc-fecha" value="${casoExistente ? casoExistente.fechaIngreso : todayISO()}"
+                style="border:1px solid var(--border); border-radius:var(--radius); padding:4px 6px; font-size:12.5px; background:#fff; font-family:inherit; color:var(--ink);">
+            </div>
             <div class="ro"><b>Hospital</b>${HOSPITAL}</div>
             ${casoExistente && esAdministrador() ? "" : `<div class="ro"><b>Aportado por</b>${casoExistente ? casoExistente.aportadoPor + " — " + casoExistente.rol : nombreCompletoPerfil() + " — " + PERFIL.rol}</div>`}
           </div>
@@ -1933,6 +1993,9 @@
       const estudio = up(estudioSeleccionado || inputEstudio.value);
       const area = up(areaSeleccionada || inputArea.value);
       const diagnostico = up(document.getElementById("nc-diagnostico").value);
+      // El input type="date" ya entrega el valor en "YYYY-MM-DD" en hora LOCAL, sin ninguna
+      // conversión a UTC de por medio — si por algo llegara vacío, se usa la fecha local de hoy.
+      const fechaIngreso = document.getElementById("nc-fecha").value || todayISO();
 
       if(!hcl || !estudio || !area || !diagnostico){
         toast("COMPLETA HCL, ESTUDIO, ÁREA Y DIAGNÓSTICO"); return;
@@ -1972,6 +2035,7 @@
         casoExistente.estudio = estudio;
         casoExistente.area = area;
         casoExistente.diagnostico = diagnostico;
+        casoExistente.fechaIngreso = fechaIngreso;
         // Reasignar propietario: SOLO existe este control si es administrador (ver el HTML del modal).
         if(selectPropietario && esAdministrador() && selectPropietario.value !== casoExistente.creadoPorId){
           const nuevoPropietario = USUARIOS.find(u=> u.id===selectPropietario.value);
@@ -2000,7 +2064,7 @@
           id: pad6(numero), hospital: HOSPITAL,
           hcl, orden, estudio, area, diagnostico,
           aportadoPor: nombreCompletoPerfil(), rol: PERFIL.rol, creadoPorId: PERFIL.id,
-          fechaIngreso: todayISO()
+          fechaIngreso: fechaIngreso
         };
         CASOS.push(casoGuardado);
         esNuevo = true;

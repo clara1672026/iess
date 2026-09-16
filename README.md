@@ -3,6 +3,42 @@
 Aplicación de una sola página (`index.html`) que ahora usa **Cloud Firestore** como base
 de datos principal y compartida de verdad entre todos los equipos que abran la web.
 
+## 🔧 Corrección (ronda actual): permiso real de Tratante y desfase de fecha
+
+Esta ronda corrige dos fallas reales que las rondas anteriores no habían resuelto del todo
+(la interfaz ya era visualmente idéntica, pero faltaba el permiso; y la fecha se calculaba
+bien pero se **mostraba** mal):
+
+- **Tratante ahora puede gestionar el catálogo de verdad.** La función `puedeGestionarCatalogo()`
+  solo autorizaba a `ADMINISTRADOR` y `POSGRADISTA`; el rol `MÉDICO TRATANTE` quedaba fuera,
+  así que aunque la pantalla era la misma, Tratante seguía viendo la versión de solo lectura
+  (sin "+ Agregar estudio", sin Editar, sin Eliminar). Se agregó `MÉDICO TRATANTE` a esa misma
+  función — sigue existiendo un único componente de catálogo para los tres roles.
+- **Tratante ya puede crear estudios nuevos**, con la misma normalización que el resto:
+  MAYÚSCULAS, sin espacios dobles ni al inicio/final, y verificación de duplicados antes de
+  guardar (mensaje exacto: *"Este tipo de estudio ya existe en el catálogo."*, ahora mostrado
+  también al usar el campo "+ Agregar otro estudio" del asistente).
+- **Eliminación de estudios usados sigue bloqueada** para todos los roles autorizados por
+  igual (ya funcionaba; se confirmó que el permiso ampliado a Tratante no debilita esta regla).
+- **Corregido el desfase de un día en las fechas.** La causa real: `fmtDate()` volvía a crear
+  un `Date` a partir del texto `"YYYY-MM-DD"` guardado, y `new Date("YYYY-MM-DD")` lo interpreta
+  como medianoche **UTC**; al leerlo de nuevo con los métodos de hora local (`getDate()`, etc.),
+  el día retrocedía uno en zonas con offset negativo como Ecuador (UTC-5). La fecha que se
+  guardaba en Firestore siempre fue la correcta — el error estaba solo en cómo se volvía a leer
+  para mostrarla. Se añadió `parseISO()`, que interpreta `"YYYY-MM-DD"` como fecha local sin
+  pasar nunca por UTC, y `fmtDate()` ahora formatea directamente el texto sin crear ningún
+  objeto `Date`. Se revisó todo el ciclo (automática al abrir el formulario → guardar →
+  Firestore → recuperar → mostrar en la lista) y usa la misma lógica en todos los puntos.
+- **La fecha de ingreso ahora es editable** en el formulario de agregar/editar caso (antes era
+  de solo lectura). Al abrir "Agregar caso" se precarga con la fecha local correcta de hoy, y
+  puede corregirse manualmente para casos con fecha histórica.
+- **Casos recientes resaltados.** Un caso con fecha de ingreso de hoy o de ayer recibe un fondo
+  sutil y una etiqueta discreta "NUEVO" en la Biblioteca de casos. El orden por defecto (más
+  reciente primero) ya existía y se mantiene, ahora usando la misma fecha local corregida.
+- **Nuevo filtro por rango de fechas** ("Desde" / "Hasta") en la Biblioteca de casos, combinable
+  con el buscador de texto y los demás filtros existentes (médico, estado, área), con un botón
+  para limpiarlo. No se quitó el buscador existente.
+
 ## 🔧 Corrección: protección de estudios en uso, usuarios eliminados y pie de página
 
 **Interfaz de Tratante confirmada de nuevo:** se volvió a verificar (comparando el HTML real
