@@ -157,12 +157,13 @@
     display:inline-block; margin-left:7px; background: var(--accent); color:#fff;
     font-size:9.5px; font-weight:800; letter-spacing:0.03em; padding:1.5px 6px; border-radius:8px;
     vertical-align:middle;
-    animation: parpadeoNuevo 1.6s ease-in-out infinite;
-    will-change: opacity;
+    animation: parpadeoNuevo 1s ease-in-out infinite;
+    will-change: opacity, transform;
+    transform-origin: center;
   }
   @keyframes parpadeoNuevo{
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(0.94); }
   }
   @media (prefers-reduced-motion: reduce){
     .badge-nuevo{ animation: none; }
@@ -774,6 +775,39 @@
     document.body.appendChild(t);
     setTimeout(()=>t.remove(), 2600);
   }
+
+  // ---- Titileo del rótulo "NUEVO": respaldo garantizado en JavaScript ----
+  // La etiqueta .badge-nuevo ya tiene una animación CSS (@keyframes parpadeoNuevo) para que
+  // titile de forma nativa y con aceleración de GPU. Este bucle en JavaScript es un RESPALDO
+  // que corre siempre, en paralelo, para garantizar el titileo incluso si algo llegara a anular
+  // la animación CSS (una regla `animation: none` de otro origen, una hoja de estilos que no
+  // cargó bien, un navegador que ignore @keyframes, etc.). No hace falta detectar si el CSS
+  // "funcionó": basta con aplicar directamente la opacidad y la escala en cada fotograma con
+  // requestAnimationFrame — es la misma técnica que usa una animación CSS por dentro, así que
+  // el resultado visual es idéntico y nunca se nota una doble animación.
+  // - Vuelve a buscar los rótulos en cada fotograma, así que sigue funcionando aunque la tabla
+  //   se vuelva a dibujar por completo (renderMain) tras guardar un caso o sincronizar datos.
+  // - Respeta prefers-reduced-motion, igual que la regla CSS equivalente.
+  // - Costo mínimo: si no hay ningún rótulo "NUEVO" visible, cada fotograma solo hace una
+  //   consulta querySelectorAll que devuelve una lista vacía.
+  (function iniciarParpadeoNuevoJS(){
+    const PERIODO_MS = 1000; // 1 segundo por ciclo (dentro del rango pedido de 0.8–1.2s)
+    const prefiereMenosMovimiento = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if(prefiereMenosMovimiento) return;
+    function frame(t){
+      const fase = (t % PERIODO_MS) / PERIODO_MS;              // 0..1
+      const onda = (Math.sin(fase * Math.PI * 2) + 1) / 2;      // 0..1, suave (seno)
+      const opacidad = (0.35 + onda * 0.65).toFixed(3);          // 0.35 .. 1
+      const escala = (0.94 + onda * 0.06).toFixed(3);            // 0.94 .. 1
+      const rotulos = document.querySelectorAll(".badge-nuevo");
+      for(let i=0; i<rotulos.length; i++){
+        rotulos[i].style.opacity = opacidad;
+        rotulos[i].style.transform = "scale(" + escala + ")";
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  })();
 
   function debounce(fn, ms){
     let timer = null;
@@ -1813,8 +1847,10 @@
           <div class="readonly-row">
             <div class="ro">
               <b>Fecha de ingreso</b>
-              <input type="date" id="nc-fecha" value="${casoExistente ? casoExistente.fechaIngreso : todayISO()}"
-                style="border:1px solid var(--border); border-radius:var(--radius); padding:4px 6px; font-size:12.5px; background:#fff; font-family:inherit; color:var(--ink);">
+              ${casoExistente
+                ? `<input type="date" id="nc-fecha" value="${casoExistente.fechaIngreso}"
+                     style="border:1px solid var(--border); border-radius:var(--radius); padding:4px 6px; font-size:12.5px; background:#fff; font-family:inherit; color:var(--ink);">`
+                : `<span class="mono" id="nc-fecha-auto">${fmtDate(todayISO())}</span>`}
             </div>
             <div class="ro"><b>Hospital</b>${HOSPITAL}</div>
             ${casoExistente && esAdministrador() ? "" : `<div class="ro"><b>Aportado por</b>${casoExistente ? casoExistente.aportadoPor + " — " + casoExistente.rol : nombreCompletoPerfil() + " — " + PERFIL.rol}</div>`}
@@ -2002,9 +2038,14 @@
       const estudio = up(estudioSeleccionado || inputEstudio.value);
       const area = up(areaSeleccionada || inputArea.value);
       const diagnostico = up(document.getElementById("nc-diagnostico").value);
-      // El input type="date" ya entrega el valor en "YYYY-MM-DD" en hora LOCAL, sin ninguna
-      // conversión a UTC de por medio — si por algo llegara vacío, se usa la fecha local de hoy.
-      const fechaIngreso = document.getElementById("nc-fecha").value || todayISO();
+      // Un caso NUEVO nunca tiene selector de fecha en el formulario (ver arriba): su fecha de
+      // ingreso siempre es la fecha LOCAL de hoy, tomada automáticamente en el momento de
+      // guardar — el usuario no elige nada. Solo al EDITAR un caso ya existente hay un
+      // input type="date" (para poder corregir un dato histórico), y ese sí entrega el valor
+      // en "YYYY-MM-DD" en hora LOCAL, sin ninguna conversión a UTC de por medio.
+      const fechaIngreso = casoExistente
+        ? (document.getElementById("nc-fecha").value || casoExistente.fechaIngreso || todayISO())
+        : todayISO();
 
       if(!hcl || !estudio || !area || !diagnostico){
         toast("COMPLETA HCL, ESTUDIO, ÁREA Y DIAGNÓSTICO"); return;

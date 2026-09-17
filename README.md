@@ -3,7 +3,49 @@
 Aplicación de una sola página (`index.html`) que ahora usa **Cloud Firestore** como base
 de datos principal y compartida de verdad entre todos los equipos que abran la web.
 
-## 🔧 Corrección (ronda actual): permiso real de Tratante y desfase de fecha
+## 🔧 Corrección (ronda actual): fecha automática al agregar un caso y titileo real de "NUEVO"
+
+Esta ronda corrige únicamente dos puntos, en los tres perfiles (Administrador, Posgradista y
+Médico Tratante); no se tocó ninguna otra función de la aplicación.
+
+**1) Fecha automática al agregar un caso — sin calendario ni selector manual.**
+- El formulario **"Agregar caso"** ya NO muestra ningún calendario, selector de fecha ni campo
+  editable de fecha de ingreso. En su lugar se ve, como texto de solo lectura, la fecha local de
+  hoy (ej. `16/09/2026`), calculada automáticamente en el momento de abrir el formulario.
+- Al guardar, la fecha de ingreso del caso nuevo se toma **siempre** de la fecha local del
+  dispositivo en ese instante (`todayISO()`), sin depender de ningún valor de formulario — el
+  usuario no elige ni puede elegir una fecha distinta.
+- Esto aplica exactamente igual para Administrador, Posgradista y Médico Tratante: los tres usan
+  el mismo formulario y la misma lógica de guardado.
+- El formulario de **editar un caso ya existente** sigue teniendo su propio campo de fecha
+  editable (sin cambios), porque ahí sí puede ser necesario corregir manualmente un dato
+  histórico — esa función no forma parte de esta corrección y se dejó intacta.
+- Se revisó todo el ciclo de vida de la fecha (guardar → recargar la página → cerrar sesión →
+  volver a iniciar sesión → leer de nuevo desde Firestore) y no hay ningún punto que recalcule o
+  reinterprete la fecha histórica ya guardada de un caso: `parseISO()` interpreta el texto
+  `"YYYY-MM-DD"` siempre como fecha LOCAL (nunca pasa por UTC) y `fmtDate()` la muestra
+  formateando directamente ese mismo texto, sin crear ningún objeto `Date` intermedio — así se
+  elimina definitivamente el error de "un día menos" en cualquier paso (guardar, recargar,
+  reabrir sesión o recuperar desde Firestore).
+
+**2) Rótulo "NUEVO" con titileo real.**
+- Un caso muestra el rótulo "NUEVO" el día de su publicación y el día siguiente (2 días en
+  total); desde el tercer día desaparece automáticamente. Esta regla ya funcionaba correctamente
+  y se mantiene sin cambios (`esCasoReciente()`).
+- Lo que sí se corrigió es que el rótulo ahora **titila de verdad**, de forma visible, suave y
+  continua (ciclo de 1 segundo, dentro del rango pedido de 0.8–1.2s), alternando opacidad
+  (1 → 0.35 → 1) y una leve escala, vía `@keyframes parpadeoNuevo`.
+- Como respaldo — para que el titileo esté garantizado y no dependa únicamente de que el CSS se
+  aplique tal cual en cada navegador — se agregó además un pequeño bucle en JavaScript
+  (`requestAnimationFrame`) que aplica exactamente la misma oscilación de opacidad/escala en
+  cada fotograma sobre cualquier rótulo "NUEVO" presente en la página en ese momento. Así, el
+  titileo sigue funcionando aunque la tabla se vuelva a dibujar (por ejemplo al guardar un caso o
+  al llegar una actualización en tiempo real de otro equipo), y sigue funcionando igual después
+  de recargar la página. Se probó en Chromium (motor de Chrome y de Edge) verificando que la
+  opacidad calculada del rótulo cambia de forma continua en el tiempo. Ambos mecanismos respetan
+  `prefers-reduced-motion` (si el sistema operativo pide menos movimiento, el rótulo no titila).
+
+## 🔧 Corrección (ronda anterior): permiso real de Tratante y desfase de fecha
 
 Esta ronda corrige dos fallas reales que las rondas anteriores no habían resuelto del todo
 (la interfaz ya era visualmente idéntica, pero faltaba el permiso; y la fecha se calculaba
@@ -29,9 +71,11 @@ bien pero se **mostraba** mal):
   pasar nunca por UTC, y `fmtDate()` ahora formatea directamente el texto sin crear ningún
   objeto `Date`. Se revisó todo el ciclo (automática al abrir el formulario → guardar →
   Firestore → recuperar → mostrar en la lista) y usa la misma lógica en todos los puntos.
-- **La fecha de ingreso ahora es editable** en el formulario de agregar/editar caso (antes era
-  de solo lectura). Al abrir "Agregar caso" se precarga con la fecha local correcta de hoy, y
-  puede corregirse manualmente para casos con fecha histórica.
+- **(Superado por la ronda actual, arriba)** En esta ronda anterior la fecha de ingreso se había
+  hecho editable también al *agregar* un caso nuevo. La ronda actual (ver arriba) volvió a quitar
+  ese selector manual solo para "Agregar caso": un caso nuevo siempre usa la fecha local de hoy en
+  automático. El campo de fecha editable se conservó únicamente en "Editar caso", para corregir
+  datos históricos.
 - **Casos recientes resaltados.** Un caso con fecha de ingreso de hoy o de ayer recibe un fondo
   sutil y una etiqueta discreta "NUEVO" en la Biblioteca de casos. El orden por defecto (más
   reciente primero) ya existía y se mantiene, ahora usando la misma fecha local corregida.
