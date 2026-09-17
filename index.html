@@ -1065,6 +1065,14 @@
   let TAB = "biblioteca";
   let filtro = { texto:"", medico:"TODOS", estado:"TODOS", area:"TODOS", desde:"", hasta:"" };
 
+  // ---- Paginación de la Biblioteca de casos ----
+  // Puramente de PRESENTACIÓN: no afecta qué casos existen, cuáles cumplen los filtros ni su
+  // orden — solo cuántos se muestran de una vez. `paginaBiblioteca` se recalcula/ajusta cada
+  // vez que se pintan los resultados (ver actualizarResultadosBiblioteca), así que si un filtro
+  // deja menos páginas de las que había, nunca queda "colgada" en una página vacía.
+  const CASOS_POR_PAGINA = 20;
+  let paginaBiblioteca = 1;
+
   function nombreCompletoPerfil(){ return PERFIL.nombres + " " + PERFIL.apellidos; }
 
   function puedeEliminarCaso(c){
@@ -1206,15 +1214,18 @@
     `;
     document.getElementById("btn-nuevo").addEventListener("click", ()=> abrirModalCaso(null));
 
-    const actualizarDebounced = debounce(actualizarResultadosBiblioteca, 150);
+    // Cualquier cambio de filtro/búsqueda vuelve a la página 1: la cantidad de páginas puede
+    // cambiar por completo con el nuevo resultado, y no tendría sentido quedarse en, por
+    // ejemplo, la página 3 de un filtro que ahora solo tiene 1 página.
+    const actualizarDebounced = debounce(()=>{ paginaBiblioteca = 1; actualizarResultadosBiblioteca(); }, 150);
     document.getElementById("f-texto").addEventListener("input", e=>{ filtro.texto=e.target.value; actualizarDebounced(); });
-    document.getElementById("f-medico").addEventListener("change", e=>{ filtro.medico=e.target.value; actualizarResultadosBiblioteca(); });
-    document.getElementById("f-estado").addEventListener("change", e=>{ filtro.estado=e.target.value; actualizarResultadosBiblioteca(); });
-    document.getElementById("f-area").addEventListener("change", e=>{ filtro.area=e.target.value; actualizarResultadosBiblioteca(); });
-    document.getElementById("f-desde").addEventListener("change", e=>{ filtro.desde=e.target.value; renderBiblioteca(); });
-    document.getElementById("f-hasta").addEventListener("change", e=>{ filtro.hasta=e.target.value; renderBiblioteca(); });
+    document.getElementById("f-medico").addEventListener("change", e=>{ filtro.medico=e.target.value; paginaBiblioteca=1; actualizarResultadosBiblioteca(); });
+    document.getElementById("f-estado").addEventListener("change", e=>{ filtro.estado=e.target.value; paginaBiblioteca=1; actualizarResultadosBiblioteca(); });
+    document.getElementById("f-area").addEventListener("change", e=>{ filtro.area=e.target.value; paginaBiblioteca=1; actualizarResultadosBiblioteca(); });
+    document.getElementById("f-desde").addEventListener("change", e=>{ filtro.desde=e.target.value; paginaBiblioteca=1; renderBiblioteca(); });
+    document.getElementById("f-hasta").addEventListener("change", e=>{ filtro.hasta=e.target.value; paginaBiblioteca=1; renderBiblioteca(); });
     const btnLimpiarFecha = document.getElementById("f-limpiar-fecha");
-    if(btnLimpiarFecha) btnLimpiarFecha.addEventListener("click", ()=>{ filtro.desde=""; filtro.hasta=""; renderBiblioteca(); });
+    if(btnLimpiarFecha) btnLimpiarFecha.addEventListener("click", ()=>{ filtro.desde=""; filtro.hasta=""; paginaBiblioteca=1; renderBiblioteca(); });
 
     actualizarResultadosBiblioteca();
   }
@@ -1228,24 +1239,79 @@
     if(filtro.estado!=="TODOS") enr = enr.filter(x=> x.cons.estado===filtro.estado);
     enr = filtrarCasos(enr);
     enr.sort((a,b)=> parseISO(b.c.fechaIngreso) - parseISO(a.c.fechaIngreso));
+
+    // Paginación: SIEMPRE se recalcula sobre el resultado YA filtrado y ordenado — así queda
+    // automáticamente correcta junto con el buscador, los filtros y el orden, sin ningún caso
+    // extra de sincronización. `paginaBiblioteca` se ajusta aquí mismo si quedó fuera de rango
+    // (por ejemplo, tras eliminar un caso que era el único de la última página).
+    const totalCasos = enr.length;
+    const totalPaginas = Math.max(1, Math.ceil(totalCasos / CASOS_POR_PAGINA));
+    if(paginaBiblioteca > totalPaginas) paginaBiblioteca = totalPaginas;
+    if(paginaBiblioteca < 1) paginaBiblioteca = 1;
+    const inicio = (paginaBiblioteca - 1) * CASOS_POR_PAGINA;
+    const pagina = enr.slice(inicio, inicio + CASOS_POR_PAGINA);
+
     contenedor.innerHTML = enr.length===0
       ? `<div class="empty"><h3>No hay casos que coincidan</h3><p>Ajusta la búsqueda o agrega el primer caso docente.</p></div>`
-      : tablaCasos(enr);
+      : tablaCasos(pagina, false, inicio) + paginacionHTML(paginaBiblioteca, totalPaginas);
     bindAccionesCaso(contenedor);
+    bindPaginacionBiblioteca(contenedor);
   }
 
-  function tablaCasos(enr, respaldoView){
+  // Barra "Anterior | 1 | 2 | 3 | Siguiente". Solo se muestra si hay más de una página (es
+  // decir, más de CASOS_POR_PAGINA casos tras aplicar los filtros actuales).
+  function paginacionHTML(paginaActual, totalPaginas){
+    if(totalPaginas <= 1) return "";
+    let numeros = "";
+    for(let p=1; p<=totalPaginas; p++){
+      const activo = p===paginaActual;
+      numeros += `<button type="button" class="btn-secondary" data-pagina="${p}"
+        style="padding:6px 11px; font-size:12px; ${activo ? "background:var(--accent); color:#fff; border-color:var(--accent);" : ""}">${p}</button>`;
+    }
+    return `
+      <div class="paginacion" style="display:flex; align-items:center; justify-content:center; gap:6px; margin-top:16px; flex-wrap:wrap;">
+        <button type="button" class="btn-secondary" data-pagina-anterior style="padding:6px 12px; font-size:12px;" ${paginaActual<=1 ? "disabled" : ""}>Anterior</button>
+        ${numeros}
+        <button type="button" class="btn-secondary" data-pagina-siguiente style="padding:6px 12px; font-size:12px;" ${paginaActual>=totalPaginas ? "disabled" : ""}>Siguiente</button>
+      </div>`;
+  }
+
+  // Cambiar de página solo reconstruye la lista de resultados (misma función que usan los
+  // filtros) — nunca recarga ni reconstruye el resto de la aplicación.
+  function bindPaginacionBiblioteca(root){
+    const anterior = root.querySelector("[data-pagina-anterior]");
+    const siguiente = root.querySelector("[data-pagina-siguiente]");
+    if(anterior) anterior.addEventListener("click", ()=>{ paginaBiblioteca--; actualizarResultadosBiblioteca(); });
+    if(siguiente) siguiente.addEventListener("click", ()=>{ paginaBiblioteca++; actualizarResultadosBiblioteca(); });
+    root.querySelectorAll("[data-pagina]").forEach(b=>{
+      b.addEventListener("click", ()=>{ paginaBiblioteca = Number(b.dataset.pagina); actualizarResultadosBiblioteca(); });
+    });
+  }
+
+  // `offsetInicio` = cuántos casos hay antes de esta página (0 en la página 1, 20 en la
+  // página 2, etc.) — solo sirve para numerar el correlativo visible en el orden correcto.
+  function tablaCasos(enr, respaldoView, offsetInicio){
+    offsetInicio = offsetInicio || 0;
+    // El correlativo (1, 2, 3…) es solo un contador de PRESENTACIÓN en la Biblioteca de casos:
+    // se calcula aquí, en cada render, a partir de la posición del caso en la lista ya
+    // filtrada/ordenada — nunca se guarda en Firestore ni sustituye al id real del caso (#000123,
+    // que sigue siendo el documento estable de la base de datos). Por eso, al eliminar un caso,
+    // el correlativo se recalcula solo y nunca deja huecos. No se muestra en "Estudios por
+    // respaldar" (respaldoView=true) para no tocar esa vista, que no fue parte de este pedido.
+    const mostrarCorrelativo = !respaldoView;
     return `
     <div class="tablewrap">
       <table>
         <thead><tr>
+          ${mostrarCorrelativo ? "<th>N.º</th>" : ""}
           <th>Caso</th><th>HCL / Orden</th><th>Estudio</th><th>Área</th><th>Diagnóstico docente</th>
           <th>Aportado por</th><th>Fecha de ingreso</th><th>Estado de conservación</th>
           <th></th>
         </tr></thead>
         <tbody>
-          ${enr.map(({c,cons})=>`
+          ${enr.map(({c,cons}, i)=>`
             <tr class="${cons.estado} ${esCasoReciente(c.fechaIngreso) ? "reciente" : ""}">
+              ${mostrarCorrelativo ? `<td data-label="N.º" class="mono">${offsetInicio + i + 1}</td>` : ""}
               <td data-label="Caso"><span class="mono caseid">#${c.id}</span>${esCasoReciente(c.fechaIngreso) ? '<span class="badge-nuevo">NUEVO</span>' : ""}</td>
               <td data-label="HCL / Orden"><span class="mono">${c.hcl}</span><br><span class="mono" style="color:var(--ink-soft); font-size:12px;">${c.orden}</span></td>
               <td data-label="Estudio">${c.estudio}</td>
@@ -2138,10 +2204,15 @@
         esNuevo = true;
       }
 
-      // ---- 2) Confirmación y actualización de pantalla INMEDIATAS, sin esperar la red ----
+      // ---- 2) Actualización de pantalla INMEDIATA, sin esperar la red ----
+      // La interfaz se actualiza al instante (no se bloquea esperando al servidor), pero el
+      // mensaje de ÉXITO del caso NUEVO se muestra más abajo, únicamente cuando Firestore ya
+      // confirmó que el guardado se completó de verdad (paso 3). Si algo más se edita en un
+      // caso EXISTENTE, ese aviso de "actualizado" no cambió: sigue siendo inmediato, tal como
+      // ya funcionaba antes de este pedido.
       back.remove();
-      toast(esNuevo ? ("CASO #" + casoGuardado.id + " GUARDADO CORRECTAMENTE") : ("CASO #" + casoGuardado.id + " ACTUALIZADO"));
-      if(esNuevo){ TAB = "biblioteca"; }
+      if(!esNuevo){ toast("CASO #" + casoGuardado.id + " ACTUALIZADO"); }
+      if(esNuevo){ TAB = "biblioteca"; paginaBiblioteca = 1; }
       renderMain();
 
       // ---- 3) Persistencia real en Firestore, en paralelo, sin bloquear la interfaz ----
@@ -2154,6 +2225,11 @@
           if(categoriaNuevaRegistrada) escrituras.push(guardarCategorias(CATEGORIAS));
           if(areaEsNueva) escrituras.push(guardarAreas(AREAS));
           await Promise.all(escrituras);
+          // El guardado en Firestore ya se confirmó de verdad: recién aquí se muestra el
+          // mensaje de éxito de un caso NUEVO, con el texto exacto pedido. `toast()` ya se
+          // encarga de que desaparezca solo (2.6s) y de no bloquear nada; como este bloque
+          // corre una sola vez por guardado, tampoco puede duplicarse.
+          if(esNuevo){ toast("Caso registrado correctamente."); }
         }catch(err){
           console.error("Error al guardar el caso en Firestore:", err);
           if(esEntradaCatalogoNueva){ CATALOGO = CATALOGO.filter(e=> e.id!==entradaCatalogo.id); }
@@ -2162,6 +2238,8 @@
           AREAS = copiaAreasAnterior;
           if(esNuevo){ CASOS = CASOS.filter(c=> c.id!==casoGuardado.id); }
           else if(copiaCasoExistenteAntes){ Object.assign(casoExistente, copiaCasoExistenteAntes); }
+          // Si el guardado falla, NUNCA se muestra el mensaje de éxito (ni se mostró antes,
+          // porque ahora ese mensaje vive únicamente dentro del `try` de arriba).
           toast("NO SE PUDO GUARDAR EL CASO EN EL SERVIDOR. SE DESHIZO EL CAMBIO — INTÉNTALO DE NUEVO.");
           renderMain();
         }

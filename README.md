@@ -3,7 +3,49 @@
 Aplicación de una sola página (`index.html`) que ahora usa **Cloud Firestore** como base
 de datos principal y compartida de verdad entre todos los equipos que abran la web.
 
-## 🔧 Corrección (ronda actual): hora de ingreso automática
+## 🔧 Corrección (ronda actual): paginación, correlativo visible y mensaje de confirmación
+
+Tres correcciones puntuales en la Biblioteca de casos; no se tocó ninguna otra función
+(el flujo de "Estudios por respaldar" sigue mostrando todos sus resultados sin paginar, tal
+como antes, ya que no formaba parte de este pedido).
+
+**1) Paginación de 20 en 20.** La Biblioteca de casos ya no pinta todos los casos de una sola
+vez: muestra como máximo 20 por página y, si hay más, agrega al final una barra
+`Anterior | 1 | 2 | 3 | Siguiente`. Con 45 casos, por ejemplo, la página 1 muestra los casos 1
+al 20, la página 2 el 21 al 40 y la página 3 el 41 al 45. Cambiar de página solo vuelve a pintar
+la lista de resultados (nunca recarga la aplicación) y funciona en conjunto con el buscador de
+texto, los filtros (médico, estado, área, rango de fechas) y el orden por fecha: la paginación
+se calcula siempre sobre el resultado YA filtrado y ordenado, así que si un filtro deja menos de
+20 casos la barra de páginas desaparece sola, y si cambia la cantidad de páginas la vista vuelve
+automáticamente a la página 1 (para no quedar "colgada" en una página que ya no existe).
+Se verificó con una prueba automatizada cargando 45 casos: página 1 = casos 1–20, página 2 =
+21–40, página 3 = 41–45, con "Siguiente" deshabilitado en la última página y "Anterior"
+funcionando correctamente de vuelta.
+
+**2) Número correlativo visible (1, 2, 3…).** Cada fila de la Biblioteca de casos ahora muestra
+una columna adicional "N.º" con su posición en la lista (1, 2, 3…, continuando entre páginas:
+la página 2 sigue en 21, 22…). Es puramente un contador visual calculado al momento de dibujar
+la tabla — nunca se guarda en Firestore ni reemplaza al identificador real del caso (`#000123`,
+que se sigue mostrando igual en la columna "Caso" y sigue siendo el id estable del documento).
+Por eso, al eliminar un caso intermedio, el correlativo se recalcula solo y nunca deja huecos
+(si se borra el caso marcado "3", el resto pasa a ser 1, 2, 3, 4… y no 1, 2, 4, 5…), mientras que
+los ids reales de Firestore de los demás casos no cambian. Esto se confirmó con una prueba
+automatizada: se eliminó un caso intermedio de una lista de 45 y se comprobó que (a) el id real
+de Firestore de ese caso desapareció, (b) los ids reales de todos los demás casos permanecieron
+intactos, y (c) el correlativo visible quedó sin saltos.
+
+**3) Mensaje de confirmación exacto al guardar.** Al registrar un caso **nuevo**, apenas
+Firestore confirma que el guardado se completó de verdad, aparece el mensaje exacto
+`Caso registrado correctamente.` — ya no antes de esa confirmación. El aviso desaparece solo a
+los pocos segundos, no bloquea la interfaz (la pantalla ya se había actualizado al instante,
+igual que antes) y no recarga la página. Si el guardado en Firestore llegara a fallar, este
+mensaje de éxito nunca se muestra — en su lugar sigue apareciendo el aviso de error que ya
+existía, y el cambio se deshace. (El aviso al *editar* un caso ya existente no cambió: sigue
+siendo inmediato, como ya funcionaba.) Se verificó con una prueba automatizada que, tras crear
+un caso nuevo, el texto del aviso coincide carácter por carácter con el pedido y que no aparece
+duplicado.
+
+## 🔧 Corrección (ronda anterior): hora de ingreso automática
 
 Se agregó un nuevo dato al caso, **`horaIngreso`**, con la misma filosofía que la fecha
 automática (ver ronda anterior, justo abajo): sin selector, sin campo editable, sin que el
