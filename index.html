@@ -157,11 +157,12 @@
     display:inline-block; margin-left:7px; background: var(--accent); color:#fff;
     font-size:9.5px; font-weight:800; letter-spacing:0.03em; padding:1.5px 6px; border-radius:8px;
     vertical-align:middle;
-    animation: parpadeoNuevo 2.2s ease-in-out infinite;
+    animation: parpadeoNuevo 1.6s ease-in-out infinite;
+    will-change: opacity;
   }
   @keyframes parpadeoNuevo{
     0%, 100% { opacity: 1; }
-    50% { opacity: 0.55; }
+    50% { opacity: 0.3; }
   }
   @media (prefers-reduced-motion: reduce){
     .badge-nuevo{ animation: none; }
