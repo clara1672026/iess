@@ -3,7 +3,31 @@
 Aplicación de una sola página (`index.html`) que ahora usa **Cloud Firestore** como base
 de datos principal y compartida de verdad entre todos los equipos que abran la web.
 
-## 🔧 Corrección (ronda actual): fecha automática al agregar un caso y titileo real de "NUEVO"
+## 🔧 Corrección (ronda actual): hora de ingreso automática
+
+Se agregó un nuevo dato al caso, **`horaIngreso`**, con la misma filosofía que la fecha
+automática (ver ronda anterior, justo abajo): sin selector, sin campo editable, sin que el
+usuario escriba nada.
+
+- Al guardar un caso **nuevo** (Administrador, Posgradista o Tratante, sin diferencia entre
+  perfiles), la aplicación toma automáticamente la hora local exacta del dispositivo en el
+  instante de pulsar "Guardar caso" (`nowHM()`, con `getHours()`/`getMinutes()` — hora LOCAL,
+  nunca UTC) y la guarda en formato 24 horas `HH:mm` (ej. `20:47`).
+- El formulario **no muestra ningún selector de hora ni campo editable**: solo, junto a la
+  fecha, un texto de solo lectura con la hora actual (referencial, mientras el formulario está
+  abierto); la hora que realmente queda guardada es la que exista en el instante exacto de
+  guardar, no la que se veía al abrir el formulario.
+- Una vez creado el caso, la hora de ingreso **nunca vuelve a recalcularse ni a sobrescribirse**:
+  al editar un caso existente (cambiar HCL, estudio, diagnóstico, fecha histórica, etc.) el
+  campo `horaIngreso` se conserva tal cual quedó al crearlo — no hay ningún punto del código que
+  lo reescriba fuera de la creación inicial. Sigue igual después de recargar la página, cerrar
+  sesión, volver a iniciar sesión o releer el caso desde Firestore, porque se guarda como un
+  campo más del documento del caso (`set()` completo, sin recalcular nada al leer).
+- En la Biblioteca de casos, la columna "Fecha de ingreso" ahora muestra fecha y hora juntas de
+  forma compacta: `16/09/2026 · 20:47`. Un caso antiguo que no tenga hora guardada (de antes de
+  este cambio) simplemente muestra solo la fecha, sin romper el formato.
+
+## 🔧 Corrección (ronda anterior): fecha automática al agregar un caso y titileo real de "NUEVO"
 
 Esta ronda corrige únicamente dos puntos, en los tres perfiles (Administrador, Posgradista y
 Médico Tratante); no se tocó ninguna otra función de la aplicación.

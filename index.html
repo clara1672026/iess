@@ -713,6 +713,14 @@
     return day.padStart(2,"0")+"/"+m.padStart(2,"0")+"/"+y;
   }
   function todayISO(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+  // Hora local exacta del dispositivo en formato 24h "HH:mm", tomada con getHours()/getMinutes()
+  // (hora LOCAL, nunca UTC/getUTCHours()) — es el mismo tipo de lectura local que ya usa
+  // todayISO() para la fecha, así que nunca se desalinea con la fecha de ingreso mostrada.
+  function nowHM(){ const d=new Date(); return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); }
+  function fmtFechaHora(fechaISO, horaHM){
+    const f = fmtDate(fechaISO);
+    return horaHM ? (f + " · " + horaHM) : f;
+  }
   function addYears(iso, years){ const d = parseISO(iso); d.setFullYear(d.getFullYear()+years); return d; }
 
   function diffYMD(from, to){
@@ -1247,7 +1255,7 @@
                 <div class="aportadopor">${c.aportadoPor}${USUARIOS.some(u=>u.id===c.creadoPorId) ? "" : ` <span style="color:var(--ink-faint); font-weight:600;">(USUARIO ELIMINADO)</span>`}</div>
                 <div class="rolechip">${c.rol}</div>
               </td>
-              <td data-label="Fecha de ingreso" class="mono">${fmtDate(c.fechaIngreso)}</td>
+              <td data-label="Fecha de ingreso" class="mono">${fmtFechaHora(c.fechaIngreso, c.horaIngreso)}</td>
               <td data-label="Estado de conservación">
                 <span class="badge-estado ${cons.estado}">${ESTADO_LABEL[cons.estado]}</span>
                 <div class="tiemporestante">${cons.restante}</div>
@@ -1852,6 +1860,10 @@
                      style="border:1px solid var(--border); border-radius:var(--radius); padding:4px 6px; font-size:12.5px; background:#fff; font-family:inherit; color:var(--ink);">`
                 : `<span class="mono" id="nc-fecha-auto">${fmtDate(todayISO())}</span>`}
             </div>
+            <div class="ro">
+              <b>Hora de ingreso</b>
+              <span class="mono">${casoExistente ? (casoExistente.horaIngreso || "—") : nowHM()}</span>
+            </div>
             <div class="ro"><b>Hospital</b>${HOSPITAL}</div>
             ${casoExistente && esAdministrador() ? "" : `<div class="ro"><b>Aportado por</b>${casoExistente ? casoExistente.aportadoPor + " — " + casoExistente.rol : nombreCompletoPerfil() + " — " + PERFIL.rol}</div>`}
           </div>
@@ -2046,6 +2058,11 @@
       const fechaIngreso = casoExistente
         ? (document.getElementById("nc-fecha").value || casoExistente.fechaIngreso || todayISO())
         : todayISO();
+      // Hora de ingreso: exactamente igual de automática que la fecha — no hay ningún campo
+      // de hora en el formulario, editable ni de otro tipo. Se calcula aquí mismo, en el
+      // instante real de pulsar "Guardar caso", únicamente para un caso NUEVO. Al editar un
+      // caso existente NUNCA se recalcula ni se sobrescribe: queda como dato histórico fijo.
+      const horaIngreso = casoExistente ? casoExistente.horaIngreso : nowHM();
 
       if(!hcl || !estudio || !area || !diagnostico){
         toast("COMPLETA HCL, ESTUDIO, ÁREA Y DIAGNÓSTICO"); return;
@@ -2114,7 +2131,8 @@
           id: pad6(numero), hospital: HOSPITAL,
           hcl, orden, estudio, area, diagnostico,
           aportadoPor: nombreCompletoPerfil(), rol: PERFIL.rol, creadoPorId: PERFIL.id,
-          fechaIngreso: fechaIngreso
+          fechaIngreso: fechaIngreso,
+          horaIngreso: horaIngreso
         };
         CASOS.push(casoGuardado);
         esNuevo = true;
