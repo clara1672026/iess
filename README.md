@@ -3,7 +3,41 @@
 Aplicación de una sola página (`index.html`) que ahora usa **Cloud Firestore** como base
 de datos principal y compartida de verdad entre todos los equipos que abran la web.
 
-## 🔧 Corrección (ronda actual): paginación, correlativo visible y mensaje de confirmación
+## 🔧 Corrección (ronda actual): identificación visual del caso unificada en "ID: X"
+
+Corrección puramente visual, aplicada tanto en la Biblioteca de casos como en "Estudios por
+respaldar" (las dos vistas que usan la misma tabla de casos), para que la identificación se vea
+igual en toda la interfaz. No se tocó nada más: paginación, filtros, buscadores, fechas, hora de
+ingreso, permisos, catálogo, usuarios, Firestore, la lógica de guardado ni el mensaje de
+confirmación siguen exactamente igual que antes de esta ronda.
+
+- **Se eliminó por completo la columna "Caso"** que mostraba el identificador interno con
+  formato `#000123`. Ya no existe ningún encabezado, columna ni texto adicional con esa
+  numeración en ninguna parte de la interfaz.
+- **Cada caso se identifica ahora únicamente como `ID: X`** (ej. `ID: 1`, `ID: 2`, `ID: 3`…),
+  en una sola columna. No hay ninguna otra numeración en paralelo ni el identificador queda
+  duplicado en dos sitios distintos.
+- **Ese `ID: X` es solo un contador visual de posición**, calculado en el momento de dibujar la
+  tabla a partir del orden ya filtrado/ordenado de los casos — exactamente el mismo cálculo que
+  ya se usaba para el correlativo de la ronda anterior, solo que ahora reemplaza también al
+  antiguo `#000123` en vez de mostrarse en una columna aparte. **Nunca se guarda en Firestore ni
+  sustituye al id real del documento** (`c.id`, ej. `"000123"`), que se sigue usando tal cual,
+  puertas adentro, para editar y eliminar el caso correcto, y que permanece completamente estable
+  e independiente del `ID: X` visible. Por eso, al eliminar un caso, el `ID: X` se reordena solo y
+  nunca deja saltos (si se elimina el que mostraba `ID: 2` de una lista `ID: 1, 2, 3, 4`, queda
+  `ID: 1, 2, 3` — nunca `ID: 1, 3, 4`).
+- **El rótulo `NUEVO` se mantiene exactamente al lado del `ID`** (ej. `ID: 1 NUEVO`), sin mover
+  a ninguna otra parte de la fila/tarjeta, y conserva exactamente su comportamiento ya
+  existente: titileo real (no estático), aparece el día de publicación y el día siguiente (2
+  días en total), y desaparece automáticamente desde el tercer día.
+- Se verificó con una prueba automatizada (cargando casos de prueba en un navegador real): no
+  queda ningún encabezado `Caso`, `#`, `Caso número` ni `Número de caso`; cada fila muestra
+  únicamente `ID: 1`, `ID: 2`, etc.; el rótulo `NUEVO` aparece junto al `ID` y su opacidad
+  calculada cambia de forma continua en el tiempo (confirma que sigue titilando); al eliminar un
+  caso intermedio, los `ID:` visuales se reordenaron sin huecos mientras que los ids reales de
+  Firestore de los casos restantes permanecieron exactamente iguales.
+
+## 🔧 Corrección (ronda anterior): paginación, correlativo visible y mensaje de confirmación
 
 Tres correcciones puntuales en la Biblioteca de casos; no se tocó ninguna otra función
 (el flujo de "Estudios por respaldar" sigue mostrando todos sus resultados sin paginar, tal

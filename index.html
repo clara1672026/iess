@@ -1289,30 +1289,30 @@
   }
 
   // `offsetInicio` = cuántos casos hay antes de esta página (0 en la página 1, 20 en la
-  // página 2, etc.) — solo sirve para numerar el correlativo visible en el orden correcto.
+  // página 2, etc.) — solo sirve para numerar el ID visual en el orden correcto.
+  //
+  // IDENTIFICACIÓN VISUAL DEL CASO: se muestra ÚNICAMENTE como "ID: X", con X = la posición del
+  // caso en la lista ya filtrada/ordenada (1, 2, 3…), calculada aquí mismo en cada render. Es
+  // solo un contador de PRESENTACIÓN: nunca se guarda en Firestore ni sustituye al id real del
+  // documento (`c.id`, ej. "000123"), que se sigue usando tal cual, sin mostrarlo, para editar y
+  // eliminar (`data-editar-caso`/`data-del`) y sigue siendo estable e independiente. Por eso, al
+  // eliminar un caso, el "ID: X" visual se recalcula solo y nunca deja huecos. No existe ninguna
+  // otra columna ni texto paralelo con otra numeración del caso.
   function tablaCasos(enr, respaldoView, offsetInicio){
     offsetInicio = offsetInicio || 0;
-    // El correlativo (1, 2, 3…) es solo un contador de PRESENTACIÓN en la Biblioteca de casos:
-    // se calcula aquí, en cada render, a partir de la posición del caso en la lista ya
-    // filtrada/ordenada — nunca se guarda en Firestore ni sustituye al id real del caso (#000123,
-    // que sigue siendo el documento estable de la base de datos). Por eso, al eliminar un caso,
-    // el correlativo se recalcula solo y nunca deja huecos. No se muestra en "Estudios por
-    // respaldar" (respaldoView=true) para no tocar esa vista, que no fue parte de este pedido.
-    const mostrarCorrelativo = !respaldoView;
     return `
     <div class="tablewrap">
       <table>
         <thead><tr>
-          ${mostrarCorrelativo ? "<th>N.º</th>" : ""}
-          <th>Caso</th><th>HCL / Orden</th><th>Estudio</th><th>Área</th><th>Diagnóstico docente</th>
+          <th>ID</th>
+          <th>HCL / Orden</th><th>Estudio</th><th>Área</th><th>Diagnóstico docente</th>
           <th>Aportado por</th><th>Fecha de ingreso</th><th>Estado de conservación</th>
           <th></th>
         </tr></thead>
         <tbody>
           ${enr.map(({c,cons}, i)=>`
             <tr class="${cons.estado} ${esCasoReciente(c.fechaIngreso) ? "reciente" : ""}">
-              ${mostrarCorrelativo ? `<td data-label="N.º" class="mono">${offsetInicio + i + 1}</td>` : ""}
-              <td data-label="Caso"><span class="mono caseid">#${c.id}</span>${esCasoReciente(c.fechaIngreso) ? '<span class="badge-nuevo">NUEVO</span>' : ""}</td>
+              <td data-label="ID"><span class="mono caseid">ID: ${offsetInicio + i + 1}</span>${esCasoReciente(c.fechaIngreso) ? '<span class="badge-nuevo">NUEVO</span>' : ""}</td>
               <td data-label="HCL / Orden"><span class="mono">${c.hcl}</span><br><span class="mono" style="color:var(--ink-soft); font-size:12px;">${c.orden}</span></td>
               <td data-label="Estudio">${c.estudio}</td>
               <td data-label="Área">${c.area || "—"}</td>
